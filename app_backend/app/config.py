@@ -55,7 +55,7 @@ class MyAppSettings(AppSettings, PaySettings):
   OSS_BUCKET_NAME: str = "triheart-book"
   OSS_SECURE: bool = False
 
-  AI_API_KEY: str = "sk-56d647c6165b46c1ab0e647e6af50916"  # 必填：你的 API Key
+  AI_API_KEY: str = ""  # 必填：你的 API Key
   AI_BASE_URL: str = "https://api.deepseek.com"  # 例如 DeepSeek 的地址
   AI_MODEL_NAME: str = "deepseek-reasoner"  # 模型名称
   AI_MAX_TOKENS: int = 128000  # 最大 token 数
@@ -64,7 +64,7 @@ class MyAppSettings(AppSettings, PaySettings):
   # --- 数据库 ---
   # DATABASE_URL: str = "sqlite+aiosqlite:///var/triheart_book_atelier.db"
   DATABASE_URL: str = "postgresql+asyncpg://thba:admin%40thba@localhost:5432/thba"
-  JWT_SECRET_KEY: str = "b7e2a1d9c8f3e4b5a6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9"
+  JWT_SECRET_KEY: str = ""
 
   ENABLE_WALLET_PAYMENT: bool = False
   ENABLE_MOCK_PAYMENT: bool = True
