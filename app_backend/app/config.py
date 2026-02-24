@@ -51,7 +51,7 @@ class MyAppSettings(AppSettings, PaySettings):
 
   OSS_ENDPOINT: str = "192.168.0.106:9000"
   OSS_ACCESS_KEY: str = "root"
-  OSS_SECRET_KEY: str = "7415069@163.com"
+  OSS_SECRET_KEY: str = ""
   OSS_BUCKET_NAME: str = "triheart-book"
   OSS_SECURE: bool = False
 
