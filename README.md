@@ -1,7 +1,7 @@
 # 📖 三心书坊 (TriHeart Book Atelier)
 
 ---
-### 官网地址: https://thba.brtech.top
+### 网站地址: https://thba.brtech.top
 
 ### —— 实现知识自由的铲子
 
