@@ -1,0 +1,174 @@
+/* src/styles/portal.scss */
+
+:root {
+  /* === 品牌色 (保持橙色系，但微调增强对比度) === */
+  --primary: #c2410c;
+  --primary-hover: #9a3412;
+
+  /* === 微信读书风格配色 === */
+  --bg-body: #f6f7f9; /* 全局浅灰背景 */
+  --bg-card: #ffffff; /* 卡片纯白背景 */
+
+  /* 文字层级 */
+  --text-main: #333333; /* 主要文字 (接近纯黑但柔和) */
+  --text-secondary: #666666; /* 次要文字 (深灰) */
+  --text-light: #999999; /* 辅助文字 (浅灰) */
+
+  /* 边框与分割线 */
+  --border-color: #e0e0e0; /* 明显的分割线颜色 */
+  --border-light: #f0f0f0; /* 极淡的边框颜色 */
+
+  /* 尺寸系统 */
+  --header-height: 64px;
+  --content-width: 1200px;
+  --card-radius: 8px; /* 较小的圆角，显得精致 */
+
+  /* 阴影系统 (微信读书风格：平时极淡，悬浮浮起) */
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.04);
+  --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* === 核心修复：强制开启滚动条 === */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  /* 覆盖 Admin 框架可能设置的 height: 100% 和 overflow: hidden */
+  height: auto !important;
+  min-height: 100%;
+  overflow-y: auto !important; /* 强制允许垂直滚动 */
+  overflow-x: hidden; /* 禁止水平滚动 */
+
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-body); /* 使用新的浅灰背景 */
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased; /* 字体平滑 */
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  /* 确保 Vue 挂载点也能随内容撑开 */
+  height: auto !important;
+  overflow: visible !important;
+  min-height: 100vh;
+}
+
+/* === 通用布局类 === */
+
+/* 通用容器：PC端居中，移动端有边距 */
+.page-container {
+  width: 100%;
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+
+/* === 统一板块风格 (Newspaper / Dashboard Look) === */
+
+/* 板块间距容器 */
+.common-section {
+  padding: 40px 0 20px;
+  position: relative;
+}
+
+/* 统一的带下划线标题栏 */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+}
+
+.section-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+  position: relative;
+  letter-spacing: -0.5px;
+}
+
+/* 可选：标题前的装饰竖线 */
+/*
+.section-title::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 16px;
+  background: var(--primary);
+  border-radius: 2px;
+}
+*/
+
+.section-more {
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.2s;
+
+  &:hover {
+    color: var(--primary);
+  }
+}
+
+/* === 通用卡片类 === */
+.wr-card {
+  background: var(--bg-card);
+  border-radius: var(--card-radius);
+  border: 1px solid var(--border-light);
+  transition: all 0.3s ease;
+}
+
+.wr-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+  border-color: transparent;
+}
+
+/* === 基础元素重置 === */
+a {
+  text-decoration: none;
+  color: inherit;
+  transition: color 0.2s;
+}
+
+button {
+  outline: none;
+  font-family: inherit;
+}
+
+/* === 响应式断点调整 === */
+@media (max-width: 768px) {
+  .page-container {
+    padding: 0 16px;
+  }
+
+  .section-title {
+    font-size: 18px;
+  }
+}
+
+/* === 滚动条美化 === */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db; /* 浅灰色滑块 */
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}

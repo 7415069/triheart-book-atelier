@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="static/favicon.svg">
+    <title>三心书坊 - 实现知识自由的铲子</title>
+    <script>
+      (function () {
+        try {
+          var c = JSON.parse(localStorage.getItem('APP_UI_CONFIG'));
+          if (c && c.themeBorderRadius) {
+            document.documentElement.style.setProperty('--el-border-radius-base', c.themeBorderRadius)
+          }
+        } catch (e) {
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

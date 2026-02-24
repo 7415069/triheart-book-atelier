@@ -1,0 +1,19 @@
+{
+  "description": "4A角色初始化",
+  "router": "/4a/role/add",
+  "headers": {"Authorization": "static 4a8f9c2d1b3e5a7f6c0d8e9b1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c"},
+  "datas": [
+    {
+      "model_id": "670914605605861100", "enableStatus": "1", "builtin": "1", "role_name": "超级管理员角色", "role_code": "A4Role/root", "role_type": "1"
+    },
+    {
+      "model_id": "670914605605861101", "enableStatus": "1", "builtin": "1", "role_name": "普通管理员角色", "role_code": "A4Role/admin", "role_type": "2"
+    },
+    {
+      "model_id": "670914605605861102", "enableStatus": "1", "builtin": "1", "role_name": "普通人员角色", "role_code": "A4Role/user", "role_type": "3"
+    },
+    {
+      "model_id": "670914605605861103", "enableStatus": "1", "builtin": "0", "role_name": "作者角色", "role_code": "A4Role/author", "role_type": "3"
+    }
+  ]
+}

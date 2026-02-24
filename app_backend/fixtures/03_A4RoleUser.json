@@ -1,0 +1,13 @@
+{
+  "description": "4A角色&用户关系初始化",
+  "router": "/4a/roleUser/add",
+  "headers": {"Authorization": "static 4a8f9c2d1b3e5a7f6c0d8e9b1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c"},
+  "datas": [
+    {
+      "role_id": "670914605605861100", "user_id": "670914605605851100", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861101", "user_id": "670914605605851101", "enableStatus": "1", "builtin": "1"
+    }
+  ]
+}

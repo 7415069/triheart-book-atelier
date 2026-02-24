@@ -1,0 +1,92 @@
+{
+  "description": "4A功能权限初始化",
+  "router": "/4a/funcPermission/add",
+  "headers": {"Authorization": "static 4a8f9c2d1b3e5a7f6c0d8e9b1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c"},
+  "datas": [
+    {
+      "model_id": "672806710313881600", "enableStatus": "1", "builtin": "1", "func_permission_name": "全部功能权限", "func_permission_code": "*:*", "func_permission_type": "2", "func_permission_uri": "/**"
+    },
+    {
+      "model_id": "672806710313881610", "enableStatus": "1", "builtin": "1", "func_permission_name": "通用认证权限", "func_permission_code": "AUTH:*", "func_permission_type": "3", "func_permission_uri": "/auth/**"
+    },
+    {
+      "model_id": "672806710313881620", "enableStatus": "1", "builtin": "1", "func_permission_name": "通用界面权限", "func_permission_code": "*:*_UI_CONFIG", "func_permission_type": "3", "func_permission_uri": "/**/ui/config"
+    },
+    {
+      "model_id": "672806710313881631", "enableStatus": "1", "builtin": "1", "func_permission_name": "通用查找权限", "func_permission_code": "*:FIND", "func_permission_type": "3", "func_permission_uri": "/**/find/*"
+    },
+    {
+      "model_id": "672806710313881632", "enableStatus": "1", "builtin": "1", "func_permission_name": "通用查询权限", "func_permission_code": "*:QUERY", "func_permission_type": "3", "func_permission_uri": "/**/query/*"
+    },
+    {
+      "model_id": "672806710313881633", "enableStatus": "1", "builtin": "1", "func_permission_name": "通用上传签名权限", "func_permission_code": "*:SIGNED_URL_UPLOAD", "func_permission_type": "3", "func_permission_uri": "/**/storage/signedUrl/upload"
+    },
+    {
+      "model_id": "672806710313881634", "enableStatus": "1", "builtin": "1", "func_permission_name": "通用下载签名权限", "func_permission_code": "*:SIGNED_URL_DOWNLOAD", "func_permission_type": "3", "func_permission_uri": "/**/storage/signedUrl/download"
+    },
+    {
+      "model_id": "672806710313881635", "enableStatus": "1", "builtin": "1", "func_permission_name": "通用 EXCEL 导出", "func_permission_code": "*:EXCEL_EXPORT", "func_permission_type": "3", "func_permission_uri": "/**/excel/export"
+    },
+    {
+      "model_id": "672806710313881640", "enableStatus": "1", "builtin": "1", "func_permission_name": "用户管理", "func_permission_code": "4A_USER", "func_permission_type": "2", "func_permission_uri": "/4a/user",
+      "children": [
+        {
+          "model_id": "672806710313881641", "parent_id": "672806710313881640", "enableStatus": "1", "builtin": "1", "func_permission_name": "根据主键进行更新", "func_permission_code": "4A_USER:UPDATE", "func_permission_type": "3",
+          "func_permission_uri": "/4a/user/update"
+        },
+        {
+          "model_id": "672806710313881642", "parent_id": "672806710313881640", "enableStatus": "1", "builtin": "1", "func_permission_name": "修改密码", "func_permission_code": "4A_USER:CHANGE_PASSWORD", "func_permission_type": "3",
+          "func_permission_uri": "/4a/user/changePassword"
+        }
+      ]
+    },
+    {
+      "model_id": "672806710313881650", "enableStatus": "1", "builtin": "1", "func_permission_name": "操作日志管理", "func_permission_code": "4A_OPERATELOG", "func_permission_type": "2", "func_permission_uri": "/4a/operateLog",
+      "children": [
+        {
+          "model_id": "672806710313881651", "parent_id": "672806710313881650", "enableStatus": "1", "builtin": "1", "func_permission_name": "根据组合条件进行分页查询", "func_permission_code": "4A_OPERATELOG:QUERY_PAGE", "func_permission_type": "3",
+          "func_permission_uri": "/4a/operateLog/query/page"
+        }
+      ]
+    },
+    {
+      "model_id": "672806710313881660", "enableStatus": "1", "builtin": "1", "func_permission_name": "登录/注销日志管理", "func_permission_code": "4A_AUTHLOG", "func_permission_type": "2", "func_permission_uri": "/4a/authLog",
+      "children": [
+        {
+          "model_id": "672806710313881661", "parent_id": "672806710313881660", "enableStatus": "1", "builtin": "1", "func_permission_name": "根据组合条件进行分页查询", "func_permission_code": "4A_AUTHLOG:QUERY_PAGE", "func_permission_type": "3",
+          "func_permission_uri": "/4a/authLog/query/page"
+        }
+      ]
+    },
+    {
+      "model_id": "672806710313881670", "enableStatus": "1", "builtin": "1", "func_permission_name": "书籍&用户关系管理", "func_permission_code": "BOOKUSER", "func_permission_type": "2", "func_permission_uri": "/bookUser",
+      "children": [
+        {
+          "model_id": "672806710313881671", "parent_id": "672806710313881670", "enableStatus": "1", "builtin": "1", "func_permission_name": "新增", "func_permission_code": "BOOKUSER:ADD", "func_permission_type": "3",
+          "func_permission_uri": "/bookUser/add"
+        },
+        {
+          "model_id": "672806710313881672", "parent_id": "672806710313881640", "enableStatus": "1", "builtin": "1", "func_permission_name": "根据主键进行更新", "func_permission_code": "BOOKUSER:UPDATE", "func_permission_type": "3",
+          "func_permission_uri": "/bookUser/update"
+        }
+      ]
+    },
+    {
+      "model_id": "672806710313881680", "enableStatus": "1", "builtin": "1", "func_permission_name": "读书笔记管理", "func_permission_code": "BOOKNOTE", "func_permission_type": "2", "func_permission_uri": "/bookNote",
+      "children": [
+        {
+          "model_id": "672806710313881681", "parent_id": "672806710313881680", "enableStatus": "1", "builtin": "1", "func_permission_name": "新增", "func_permission_code": "BOOKNOTE:ADD", "func_permission_type": "3",
+          "func_permission_uri": "/bookNote/add"
+        },
+        {
+          "model_id": "672806710313881682", "parent_id": "672806710313881680", "enableStatus": "1", "builtin": "1", "func_permission_name": "根据主键进行更新", "func_permission_code": "BOOKNOTE:UPDATE", "func_permission_type": "3",
+          "func_permission_uri": "/bookNote/update"
+        },
+        {
+          "model_id": "672806710313881683", "parent_id": "672806710313881680", "enableStatus": "1", "builtin": "1", "func_permission_name": "根据主键进行删除", "func_permission_code": "BOOKNOTE:DELETE", "func_permission_type": "3",
+          "func_permission_uri": "/bookNote/delete/*"
+        }
+      ]
+    }
+  ]
+}

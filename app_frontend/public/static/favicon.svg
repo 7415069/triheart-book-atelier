@@ -1,0 +1,36 @@
+<svg viewBox="60 110 280 280" xmlns="http://www.w3.org/2000/svg">
+    <!--
+      优化点：
+      1. stroke="white"：给心形加了白色描边，防止在深色浏览器里看不见。
+      2. stroke-width="12"：描边设为 12，缩小成图标时依然清晰。
+      3. paint-order="stroke"：确保描边不会把心形内部的颜色挤小。
+    -->
+    
+    <defs>
+        <path id="heart-shape"
+            d="M0,0
+             C-20,-20 -50,-50 -50,-80
+             C-50,-120 -20,-140 0,-110
+             C20,-140 50,-120 50,-80
+             C50,-50 20,-20 0,0 Z"/>
+    </defs>
+    
+    <g transform="translate(200, 260)">
+        
+        <!-- 1. 匠心 (左侧 - 绿色) -->
+        <g transform="rotate(-120)">
+            <use href="#heart-shape" fill="#28A745" stroke="white" stroke-width="12" stroke-linejoin="round" paint-order="stroke"/>
+        </g>
+        
+        <!-- 2. 舒心 (右侧 - 粉橙色) -->
+        <g transform="rotate(120)">
+            <use href="#heart-shape" fill="#FF6F61" stroke="white" stroke-width="12" stroke-linejoin="round" paint-order="stroke"/>
+        </g>
+        
+        <!-- 3. 安心 (中间 - 蓝色) -->
+        <g transform="scale(1.00)">
+            <use href="#heart-shape" fill="#005691" stroke="white" stroke-width="12" stroke-linejoin="round" paint-order="stroke"/>
+        </g>
+    
+    </g>
+</svg>

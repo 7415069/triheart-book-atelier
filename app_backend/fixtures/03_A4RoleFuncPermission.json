@@ -1,0 +1,76 @@
+{
+  "description": "4A角色&功能权限关系初始化",
+  "router": "/4a/roleFuncPermission/add",
+  "headers": {"Authorization": "static 4a8f9c2d1b3e5a7f6c0d8e9b1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c"},
+  "datas": [
+    {
+      "role_id": "670914605605861100", "func_permission_id": "672806710313881600", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861101", "func_permission_id": "672806710313881600", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881610", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881620", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881631", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881632", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881633", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881634", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881635", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881640", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881641", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881642", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881650", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881651", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881660", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881661", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881670", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881671", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881672", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881680", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881681", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881682", "enableStatus": "1", "builtin": "1"
+    },
+    {
+      "role_id": "670914605605861102", "func_permission_id": "672806710313881683", "enableStatus": "1", "builtin": "1"
+    }
+  ]
+}

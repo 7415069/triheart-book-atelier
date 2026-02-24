@@ -1,0 +1,6 @@
+dist
+var
+__pycache__
+static/assets
+static/index.html
+.env

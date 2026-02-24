@@ -1,0 +1,13 @@
+{
+  "description": "4A用户初始化",
+  "router": "/4a/user/add",
+  "headers": {"Authorization": "static 4a8f9c2d1b3e5a7f6c0d8e9b1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c"},
+  "datas": [
+    {
+      "model_id": "670914605605851100", "enableStatus": "1", "builtin": "1", "user_account": "root", "user_name": "超级管理员", "user_code": "A4User/root", "user_gender": "1", "password": "7415069@163.com", "user_status": "1"
+    },
+    {
+      "model_id": "670914605605851101", "enableStatus": "1", "builtin": "1", "user_account": "admin", "user_name": "普通管理员", "user_code": "A4User/admin", "user_gender": "1", "password": "admin@thba", "user_status": "1"
+    }
+  ]
+}

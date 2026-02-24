@@ -1,0 +1,65 @@
+{
+  "description": "前端菜单结构初始化",
+  "router": "/ui/menu/add",
+  "headers": {"Authorization": "static 4a8f9c2d1b3e5a7f6c0d8e9b1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c"},
+  "datas": [
+    {
+      "model_id": "menu_system", "title": "底座功能", "icon": "Setting", "path": "/system", "component": "Layout", "sort_order": 100, "hidden": false
+    },
+    {
+      "model_id": "menu_system_dict", "parent_id": "menu_system", "title": "字典管理", "icon": "ScaleToOriginal", "api_prefix": "/dictionary", "path": "/dictionary", "component": "", "sort_order": 101, "hidden": false
+    },
+    {
+      "model_id": "menu_system_user", "parent_id": "menu_system", "title": "用户管理", "icon": "User", "api_prefix": "/4a/user", "path": "/user", "user_module": true, "component": "", "sort_order": 102, "hidden": false
+    },
+    {
+      "model_id": "menu_system_role", "parent_id": "menu_system", "title": "角色管理", "icon": "Avatar", "api_prefix": "/4a/role", "path": "/role", "component": "", "sort_order": 103, "hidden": false
+    },
+    {
+      "model_id": "menu_system_func_permission", "parent_id": "menu_system", "title": "功能权限管理", "icon": "Operation", "api_prefix": "/4a/funcPermission", "path": "/funcPermission", "component": "", "sort_order": 104, "hidden": false
+    },
+    {
+      "model_id": "menu_system_data_permission", "parent_id": "menu_system", "title": "数据权限管理", "icon": "Suitcase", "api_prefix": "/4a/dataPermission", "path": "/dataPermission", "component": "", "sort_order": 105, "hidden": false
+    },
+    {
+      "model_id": "menu_system_operate", "parent_id": "menu_system", "title": "操作日志", "icon": "ChatLineSquare", "api_prefix": "/4a/operateLog", "path": "/operateLog", "component": "", "sort_order": 106, "hidden": false
+    },
+    {
+      "model_id": "menu_system_auth", "parent_id": "menu_system", "title": "登录日志", "icon": "Key", "api_prefix": "/4a/authLog", "path": "/authLog", "component": "", "sort_order": 107, "hidden": false
+    },
+    {
+      "model_id": "menu_system_task", "parent_id": "menu_system", "title": "任务管理", "icon": "Timer", "api_prefix": "/task", "path": "/task", "component": "", "sort_order": 108, "hidden": false
+    },
+    {
+      "model_id": "menu_business", "title": "业务功能", "icon": "Document", "path": "/business", "component": "Layout", "sort_order": 200, "hidden": false
+    },
+    {
+      "model_id": "menu_business_book", "parent_id": "menu_business", "title": "书籍管理", "icon": "Notebook", "api_prefix": "/book", "path": "/book", "component": "views/book/index", "sort_order": 201, "hidden": false
+    },
+    {
+      "model_id": "menu_business_chapter", "parent_id": "menu_business", "title": "章节管理", "icon": "Collection", "api_prefix": "/chapter", "path": "/chapter", "component": "views/chapter/index", "sort_order": 202, "hidden": true
+    },
+    {
+      "model_id": "menu_business_page", "parent_id": "menu_business", "title": "书页管理", "icon": "Film", "api_prefix": "/page", "path": "/page", "component": "views/page/index", "sort_order": 203, "hidden": true
+    },
+    {
+      "model_id": "menu_business_term", "parent_id": "menu_business", "title": "术语管理", "icon": "Picture", "api_prefix": "/term", "path": "/term", "component": "views/term/index", "sort_order": 204, "hidden": true
+    },
+    {
+      "model_id": "menu_business_page_term", "parent_id": "menu_business", "title": "书页&术语关系管理", "icon": "Postcard", "api_prefix": "/pageTerm", "path": "/pageTerm", "component": "views/pageTerm/index", "sort_order": 205, "hidden": true
+    },
+    {
+      "model_id": "menu_business_mook_note", "parent_id": "menu_business", "title": "读书笔记管理", "icon": "EditPen", "api_prefix": "/bookNote", "path": "/bookNote", "component": "views/bookNote/index", "sort_order": 206, "hidden": true
+    },
+    {
+      "model_id": "menu_business_page_attachment", "parent_id": "menu_business", "title": "书页附件管理", "icon": "Notification", "api_prefix": "/pageAttachment", "path": "/pageAttachment", "component": "views/pageAttachment/index", "sort_order": 207,
+      "hidden": true
+    },
+    {
+      "model_id": "menu_payment", "title": "支付功能", "icon": "Document", "path": "/payment", "component": "Layout", "sort_order": 300, "hidden": false
+    },
+    {
+      "model_id": "menu_payment_order", "parent_id": "menu_payment", "title": "支付订单管理", "icon": "Document", "api_prefix": "/payment/order", "path": "/payment/order", "component": "views/paymentOrder/index", "sort_order": 301, "hidden": false
+    }
+  ]
+}

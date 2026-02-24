@@ -1,0 +1,118 @@
+{
+  "description": "初始化系统字典",
+  "router": "/dictionary/add",
+  "headers": {"Authorization": "static 4a8f9c2d1b3e5a7f6c0d8e9b1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c"},
+  "datas": [
+    {
+      "model_id": "gender", "dic_type": "gender", "dic_value": "gender-g", "dic_label": "性别", "dic_sort": 1100,
+      "children": [
+        {"model_id": "gender$1", "dic_type": "gender", "dic_value": "1", "dic_label": "男", "dic_color": "#409EFF", "dic_sort": 1101},
+        {"model_id": "gender$2", "dic_type": "gender", "dic_value": "2", "dic_label": "女", "dic_color": "#F56C6C", "dic_sort": 1102}
+      ]
+    },
+    {
+      "model_id": "yes_no", "dic_type": "yes_no", "dic_value": "yes_no-g", "dic_label": "是/否", "dic_sort": 1200,
+      "children": [
+        {"model_id": "yes_no$0", "dic_type": "yes_no", "dic_value": "0", "dic_label": "否", "dic_color": "#909399", "dic_sort": 1201},
+        {"model_id": "yes_no$1", "dic_type": "yes_no", "dic_value": "1", "dic_label": "是", "dic_color": "#67C23A", "dic_sort": 1202}
+      ]
+    },
+    {
+      "model_id": "user_status", "dic_type": "user_status", "dic_value": "user_status-g", "dic_label": "用户状态", "dic_sort": 2000,
+      "children": [
+        {"model_id": "user_status$1", "dic_type": "user_status", "dic_value": "1", "dic_label": "正常", "dic_color": "#67C23A", "dic_sort": 2001},
+        {"model_id": "user_status$2", "dic_type": "user_status", "dic_value": "2", "dic_label": "初始", "dic_color": "#E6A23C", "dic_sort": 2002},
+        {"model_id": "user_status$3", "dic_type": "user_status", "dic_value": "3", "dic_label": "锁定", "dic_color": "#F56C6C", "dic_sort": 2003},
+        {"model_id": "user_status$4", "dic_type": "user_status", "dic_value": "4", "dic_label": "注销", "dic_color": "#909399", "dic_sort": 2004}
+      ]
+    },
+    {
+      "model_id": "data_permission_type", "dic_type": "data_permission_type", "dic_value": "data_permission_type-g", "dic_label": "数据权限类型", "dic_sort": 2010,
+      "children": [
+        {"model_id": "data_permission_type$1", "dic_type": "data_permission_type", "dic_value": "1", "dic_label": "主键集合", "dic_color": "#409EFF", "dic_sort": 2011},
+        {"model_id": "data_permission_type$2", "dic_type": "data_permission_type", "dic_value": "2", "dic_label": "SQL 从句", "dic_color": "#E6A23C", "dic_sort": 2012}
+      ]
+    },
+    {
+      "model_id": "func_permission_type", "dic_type": "func_permission_type", "dic_value": "func_permission_type-g", "dic_label": "功能权限", "dic_sort": 2020,
+      "children": [
+        {"model_id": "func_permission_type$1", "dic_type": "func_permission_type", "dic_value": "1", "dic_label": "应用权限", "dic_color": "#409EFF", "dic_sort": 2021},
+        {"model_id": "func_permission_type$2", "dic_type": "func_permission_type", "dic_value": "2", "dic_label": "菜单权限", "dic_color": "#67C23A", "dic_sort": 2022},
+        {"model_id": "func_permission_type$3", "dic_type": "func_permission_type", "dic_value": "3", "dic_label": "按钮权限", "dic_color": "#E6A23C", "dic_sort": 2023},
+        {"model_id": "func_permission_type$4", "dic_type": "func_permission_type", "dic_value": "4", "dic_label": "右键菜单", "dic_color": "#909399", "dic_sort": 2024}
+      ]
+    },
+    {
+      "model_id": "role_type", "dic_type": "role_type", "dic_value": "role_type-g", "dic_label": "角色类型", "dic_sort": 2030,
+      "children": [
+        {"model_id": "role_type$1", "dic_type": "role_type", "dic_value": "1", "dic_label": "超级管理员角色", "dic_color": "#F56C6C", "dic_sort": 2031},
+        {"model_id": "role_type$2", "dic_type": "role_type", "dic_value": "2", "dic_label": "普通管理员角色", "dic_color": "#E6A23C", "dic_sort": 2032},
+        {"model_id": "role_type$3", "dic_type": "role_type", "dic_value": "3", "dic_label": "标准人员角色", "dic_color": "#409EFF", "dic_sort": 2033}
+      ]
+    },
+    {
+      "model_id": "auth_type", "dic_type": "auth_type", "dic_value": "auth_type-g", "dic_label": "登录/注销类型", "dic_sort": 2040,
+      "children": [
+        {"model_id": "auth_type$1", "dic_type": "auth_type", "dic_value": "1", "dic_label": "登录", "dic_color": "#67C23A", "dic_sort": 2041},
+        {"model_id": "auth_type$2", "dic_type": "auth_type", "dic_value": "2", "dic_label": "注销", "dic_color": "#909399", "dic_sort": 2042}
+      ]
+    },
+    {
+      "model_id": "success_fail", "dic_type": "success_fail", "dic_value": "success_fail-g", "dic_label": "成功/失败", "dic_sort": 2050,
+      "children": [
+        {"model_id": "success_fail$1", "dic_type": "success_fail", "dic_value": "1", "dic_label": "成功", "dic_color": "#67C23A", "dic_sort": 2051},
+        {"model_id": "success_fail$2", "dic_type": "success_fail", "dic_value": "2", "dic_label": "失败", "dic_color": "#F56C6C", "dic_sort": 2052}
+      ]
+    },
+    {
+      "model_id": "book_status", "dic_type": "book_status", "dic_value": "book_status-g", "dic_label": "书籍状态", "dic_sort": 2070,
+      "children": [
+        {"model_id": "book_status$1", "dic_type": "book_status", "dic_value": "1", "dic_label": "正常", "dic_color": "#67C23A", "dic_sort": 2071},
+        {"model_id": "book_status$2", "dic_type": "book_status", "dic_value": "2", "dic_label": "下架", "dic_color": "#909399", "dic_sort": 2072},
+        {"model_id": "book_status$3", "dic_type": "book_status", "dic_value": "3", "dic_label": "预售", "dic_color": "#409EFF", "dic_sort": 2073},
+        {"model_id": "book_status$4", "dic_type": "book_status", "dic_value": "4", "dic_label": "正在上架", "dic_color": "#E6A23C", "dic_sort": 2074}
+      ]
+    },
+    {
+      "model_id": "process_status", "dic_type": "process_status", "dic_value": "process_status-g", "dic_label": "解析状态", "dic_sort": 2080,
+      "children": [
+        {"model_id": "process_status$0", "dic_type": "process_status", "dic_value": "0", "dic_label": "等待解析", "dic_color": "#909399", "dic_sort": 2081},
+        {"model_id": "process_status$1", "dic_type": "process_status", "dic_value": "1", "dic_label": "正在解析", "dic_color": "#409EFF", "dic_sort": 2082},
+        {"model_id": "process_status$2", "dic_type": "process_status", "dic_value": "2", "dic_label": "解析完成", "dic_color": "#67C23A", "dic_sort": 2083},
+        {"model_id": "process_status$9", "dic_type": "process_status", "dic_value": "9", "dic_label": "解析失败", "dic_color": "#F56C6C", "dic_sort": 2084}
+      ]
+    },
+    {
+      "model_id": "book_category", "dic_type": "book_category", "dic_value": "book_category-g", "dic_label": "书籍分类", "dic_sort": 2090,
+      "children": [
+        {"model_id": "book_category$1", "dic_type": "book_category", "dic_value": "1", "dic_label": "历史", "dic_color": "#8d6e63", "dic_sort": 2091},
+        {"model_id": "book_category$2", "dic_type": "book_category", "dic_value": "2", "dic_label": "社会", "dic_color": "#5c6bc0", "dic_sort": 2092},
+        {"model_id": "book_category$3", "dic_type": "book_category", "dic_value": "3", "dic_label": "法律", "dic_color": "#ef5350", "dic_sort": 2093},
+        {"model_id": "book_category$4", "dic_type": "book_category", "dic_value": "4", "dic_label": "科技", "dic_color": "#26a69a", "dic_sort": 2094}
+      ]
+    },
+    {
+      "model_id": "book_sort", "dic_type": "book_sort", "dic_value": "book_sort-g", "dic_label": "书籍排序", "dic_sort": 2100,
+      "children": [
+        {"model_id": "book_sort$1", "dic_type": "book_sort", "dic_value": "updateTimestamp,DESC", "dic_label": "综合排序", "dic_color": "#909399", "dic_sort": 2101},
+        {"model_id": "book_sort$2", "dic_type": "book_sort", "dic_value": "createTimestamp,DESC", "dic_label": "最新上架", "dic_color": "#409EFF", "dic_sort": 2102},
+        {"model_id": "book_sort$3", "dic_type": "book_sort", "dic_value": "bookSalePrice,ASC", "dic_label": "价格最低", "dic_color": "#E6A23C", "dic_sort": 2103}
+      ]
+    },
+    {
+      "model_id": "term_source_type", "dic_type": "term_source_type", "dic_value": "term_source_type-g", "dic_label": "术语来源", "dic_sort": 2200,
+      "children": [
+        {"model_id": "term_source_type$1", "dic_type": "term_source_type", "dic_value": "1", "dic_label": "人工录入", "dic_color": "#409EFF", "dic_sort": 2201},
+        {"model_id": "term_source_type$2", "dic_type": "term_source_type", "dic_value": "2", "dic_label": "AI抽取", "dic_color": "#E6A23C", "dic_sort": 2202}
+      ]
+    },
+    {
+      "model_id": "page_attachment_type", "dic_type": "page_attachment_type", "dic_value": "page_attachment_type-g", "dic_label": "页面附件类型", "dic_sort": 2300,
+      "children": [
+        {"model_id": "page_attachment_type$code", "dic_type": "page_attachment_type", "dic_value": "code", "dic_label": "代码文件", "dic_color": "#409EFF", "dic_sort": 2301},
+        {"model_id": "page_attachment_type$audio", "dic_type": "page_attachment_type", "dic_value": "audio", "dic_label": "音频文件", "dic_color": "#67C23A", "dic_sort": 2302},
+        {"model_id": "page_attachment_type$video", "dic_type": "page_attachment_type", "dic_value": "video", "dic_label": "视频文件", "dic_color": "#E6A23C", "dic_sort": 2303}
+      ]
+    }
+  ]
+}
