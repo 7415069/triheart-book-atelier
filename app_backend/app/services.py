@@ -216,6 +216,13 @@ class TriHeartBookService(StringPKeyWithDictionaryService[TriHeartBookModel, Tri
     if "book_pdf_path" in update_fields and new_model.book_pdf_path and new_model.book_pdf_path != old_model.book_pdf_path:
       old_model.process_status = PROC_PENDING
 
+  async def de_identification(self, user_id: str | None, models: Sequence[TriHeartBookModel]) -> None:
+    await super().de_identification(user_id, models)
+    if models:
+      for model in models:
+        # 681186536234029056/2026/0417/TriHeartBookModel-700345638113644544/智能体修行青铜到王者的无品功法.pdf
+        model.book_pdf_path = ""
+
   # async def post_update(self, user_id: str, old_model: TriHeartBookModel, new_model: TriHeartBookModel, update_fields: set[str]) -> None:
   #   await super().post_update(user_id, old_model, new_model, update_fields)
   #   # 仅当 PDF 路径变更时触发

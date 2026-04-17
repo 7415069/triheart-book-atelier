@@ -441,7 +441,7 @@ onUnmounted(() => {
 /* Grid */
 .book-hero-grid {
   display: grid;
-  grid-template-columns: 260px 1fr 1fr;
+  grid-template-columns: 300px 1fr 1fr;
   gap: 40px;
   margin-bottom: 60px;
   align-items: stretch;
@@ -474,7 +474,7 @@ onUnmounted(() => {
   .meta-card {
     background: #f8fafc;
     border-radius: 12px;
-    padding: 30px;
+    padding: 10px;
     height: 100%;
     border: 1px solid #f1f5f9;
     display: flex;
@@ -629,7 +629,7 @@ onUnmounted(() => {
   .summary-card {
     background: #f8fafc;
     border-radius: 12px;
-    padding: 24px;
+    padding: 10px;
     height: 100%;
     border: 1px solid #f1f5f9;
 
@@ -650,6 +650,7 @@ onUnmounted(() => {
       flex: 1;
       overflow-y: auto;
       min-height: 0;
+      max-height: 380px;
       padding-right: 5px;
 
       &::-webkit-scrollbar {

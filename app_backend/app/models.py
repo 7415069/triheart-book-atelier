@@ -132,7 +132,7 @@ class TriHeartBookModel(StringPKeyModel, table=True):
         component=UIComponent.UPLOAD, component_props=FieldOption.UploadComponentProps(accept=".pdf", max_size=50, limit=1)
     )
   ] = SQLModelField(
-      description="书籍PDF路径", exclude=True,
+      description="书籍PDF路径",
       sa_type=String, max_length=256, nullable=True,
       sa_column_kwargs={"name": "book_pdf_path", "comment": "书籍PDF路径"}
   )
