@@ -222,17 +222,17 @@ class TriHeartBookService(StringPKeyWithDictionaryService[TriHeartBookModel, Tri
     if book:
       if thba_app_settings.CDN_OSS_ENABLE and thba_app_settings.CDN_OSS_PROVIDER == "Gcore":
         secret_key = thba_app_settings.CDN_OSS_SECRET_KEY
-        raw_path = f"/{thba_app_settings.OSS_BUCKET_NAME}/{book.book_cover_path}"
+        raw_path = f"/{thba_app_settings.OSS_BUCKET_NAME}/{book.book_cover}"
         path = re.sub(r'/+', '/', raw_path)
         ttl = 3600  # TTL of URL (in sec)
         expires = int(time()) + ttl  # Token generation
         token_hash = md5(f"{expires}{path} {secret_key}".encode()).digest()
         token = base64.b64encode(token_hash).decode().replace("\n", "").replace("+", "-").replace("/", "_").replace("=", "")
         extra_params = {"md5": token, "expires": str(expires)}
-        raw_sign_url = await self.get_oss_download_sign_url(user_id, book.book_cover_path, "", extra_params)
+        raw_sign_url = await self.get_oss_download_sign_url(user_id, book.book_cover, "", extra_params)
         sign_url = raw_sign_url.replace(thba_app_settings.OSS_ENDPOINT, thba_app_settings.CDN_OSS_ENDPOINT)
       else:
-        sign_url = await self.get_oss_download_sign_url(user_id, book.book_cover_path, "")
+        sign_url = await self.get_oss_download_sign_url(user_id, book.book_cover, "")
     return sign_url
 
   async def pre_create(self, user_id: str, model: TriHeartBookModel) -> None:
