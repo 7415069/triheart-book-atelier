@@ -130,10 +130,7 @@ class TriHeartBookRouter(StringPKeyWithDictionaryRouter[TriHeartBookModel, TriHe
         service: TriHeartBookService = Depends(self._get_service),
         auth_context: AuthContext = Depends(self.optional_user_dependency)
     ):
-      book: TriHeartBookModel | None = await service.get(auth_context.user_id, bookId)
-      sign_url: str | None = ""
-      if book:
-        sign_url = await service.get_oss_download_sign_url(auth_context.user_id, book.book_cover, None)
+      sign_url = await service.get_cover_sign_url(auth_context.user_id, bookId)
       return RestResponse.success(data=sign_url)
 
   pass

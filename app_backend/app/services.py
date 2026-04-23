@@ -1,7 +1,11 @@
 # /app/services.py
 import asyncio
+import base64
 import json
 import os
+import re
+from hashlib import md5
+from time import time
 from typing import List, Tuple, Callable, Dict, Any, Sequence, Generic
 
 import httpx
@@ -19,6 +23,7 @@ from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 
 from .ai_helper import AiHelper
+from .config import thba_app_settings
 # 引入本项目依赖
 from .crud import TriHeartPageCrud, TriHeartBookCrud, TriHeartChapterCrud, TriHeartChapterPageCrud, TriHeartBookNoteCrud, TriHeartBookUserCrud, TriHeartTermCrud, TriHeartPageTermCrud, TriHeartPageAttachmentCrud
 from .models import TriHeartPageModel, TriHeartBookModel, TriHeartChapterModel, TriHeartChapterPageModel, TriHeartBookUserModel, TriHeartBookNoteModel, TriHeartPageTermModel, TriHeartTermModel, TriHeartPageAttachmentModel
@@ -186,7 +191,22 @@ class TriHeartPageService(StringPKeyService[TriHeartPageModel, TriHeartPageCrud,
     if not target_path:
       raise HTTPException(status_code=404, detail="图片资源缺失")
 
-    return await self.get_oss_download_sign_url(user_id, target_path, "")
+    if thba_app_settings.CDN_OSS_ENABLE and thba_app_settings.CDN_OSS_PROVIDER == "Gcore":
+      secret_key = thba_app_settings.CDN_OSS_SECRET_KEY
+      raw_path = f"/{thba_app_settings.OSS_BUCKET_NAME}/{target_path}"
+      path = re.sub(r'/+', '/', raw_path)
+      ttl = 3600  # TTL of URL (in sec)
+      expires = int(time()) + ttl  # Token generation
+      token_hash = md5(f"{expires}{path} {secret_key}".encode()).digest()
+      token = base64.b64encode(token_hash).decode().replace("\n", "").replace("+", "-").replace("/", "_").replace("=", "")
+      extra_params = {"md5": token, "expires": str(expires)}
+      raw_sign_url = await self.get_oss_download_sign_url(user_id, target_path, "", extra_params)
+      sign_url = raw_sign_url.replace(thba_app_settings.OSS_ENDPOINT, thba_app_settings.CDN_OSS_ENDPOINT)
+    else:
+      sign_url = await self.get_oss_download_sign_url(user_id, target_path, "")
+    # https://minio.brtech.top/thba/681186536234029056/2026/0417/TriHeartBookModel-700345638113644544/webp/original/1.webp?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=CcLG5FcYksvDUE6oca1e%2F20260422%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260422T110341Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=ae51a62fe4909f6ec44052ee90bb6fb2a39e6e12ce6b5b8621b05a20a3510036
+
+    return sign_url
 
 
 # [新增] 章节与书页关联表 Service
@@ -195,6 +215,25 @@ class TriHeartChapterPageService(StringPKeyService[TriHeartChapterPageModel, Tri
 
 
 class TriHeartBookService(StringPKeyWithDictionaryService[TriHeartBookModel, TriHeartBookCrud, TriHeartBookQuery]):
+
+  async def get_cover_sign_url(self, user_id: str, book_id: str) -> str:
+    book: TriHeartBookModel | None = await self.get(user_id, book_id)
+    sign_url: str = ""
+    if book:
+      if thba_app_settings.CDN_OSS_ENABLE and thba_app_settings.CDN_OSS_PROVIDER == "Gcore":
+        secret_key = thba_app_settings.CDN_OSS_SECRET_KEY
+        raw_path = f"/{thba_app_settings.OSS_BUCKET_NAME}/{book.book_cover_path}"
+        path = re.sub(r'/+', '/', raw_path)
+        ttl = 3600  # TTL of URL (in sec)
+        expires = int(time()) + ttl  # Token generation
+        token_hash = md5(f"{expires}{path} {secret_key}".encode()).digest()
+        token = base64.b64encode(token_hash).decode().replace("\n", "").replace("+", "-").replace("/", "_").replace("=", "")
+        extra_params = {"md5": token, "expires": str(expires)}
+        raw_sign_url = await self.get_oss_download_sign_url(user_id, book.book_cover_path, "", extra_params)
+        sign_url = raw_sign_url.replace(thba_app_settings.OSS_ENDPOINT, thba_app_settings.CDN_OSS_ENDPOINT)
+      else:
+        sign_url = await self.get_oss_download_sign_url(user_id, book.book_cover_path, "")
+    return sign_url
 
   async def pre_create(self, user_id: str, model: TriHeartBookModel) -> None:
     await super().pre_create(user_id, model)

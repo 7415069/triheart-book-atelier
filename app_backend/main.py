@@ -17,7 +17,7 @@ from brtech_backend.payment.routers import payment_router_classes
 from brtech_backend.task.routers import TaskRecordRouter
 from brtech_backend.ui.routers import ui_router_classes
 
-from app.config import MyAppSettings
+from app.config import thba_app_settings
 from app.routers import thba_router_classes
 
 Public(DictionaryRouteKey.QUERY_BY_TYPES)(DictionaryRouter)
@@ -28,7 +28,7 @@ logger = logging.getLogger("application")
 class MyApplication(Application):
 
   def __init__(self, settings: Any, router_classes=None, **kwargs):
-    install_all_settings(MyAppSettings())
+    install_all_settings(thba_app_settings)
     super().__init__(settings, router_classes, **kwargs)
 
   def prepare(self):

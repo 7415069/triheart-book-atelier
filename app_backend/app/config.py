@@ -3,7 +3,7 @@ from brtech_backend.core.config import AppSettings
 from brtech_backend.payment.config import PaySettings
 
 
-class MyAppSettings(AppSettings, PaySettings):
+class ThbaAppSettings(AppSettings, PaySettings):
   # --- 基础配置 ---
   # TITLE: str = "基于FastAPI的Web后端框架"
   TITLE: str = "三心书坊 - 实现知识自由的铲子"
@@ -72,4 +72,10 @@ class MyAppSettings(AppSettings, PaySettings):
   ENABLE_DATA_PERMISSION_VALIDATION: bool = True
   ENABLE_FUNC_PERMISSION_VALIDATION: bool = True
 
-# my_app_settings = MyAppSettings()
+  CDN_OSS_ENABLE: bool = True
+  CDN_OSS_PROVIDER: str = "Gcore"
+  CDN_OSS_ENDPOINT: str = "minio-cdn.brtech.top"
+  CDN_OSS_SECRET_KEY: str = ""
+
+
+thba_app_settings = ThbaAppSettings()
