@@ -110,13 +110,20 @@
               class="preview-item-wrapper"
               :style="{ width: `${CARD_WIDTH}px` }"
           >
+            <!--
+               1. preview-src-list: 绑定完整列表
+            -->
             <el-image
                 class="real-catalog-img"
                 :src="item.url || ''"
+                :preview-src-list="allPreviewUrlList"
+                :initial-index="index"
                 fit="cover"
                 loading="eager"
+                preview-teleported
+                hide-on-click-modal
+                close-on-press-escape
                 :style="{ height: `${CARD_WIDTH * 1.414}px` }"
-                @click="openViewer(index)"
             >
               <template #placeholder>
                 <div class="image-slot loading-slot">
@@ -139,18 +146,18 @@
           </div>
         </div>
 
-        <!-- 独立 ImageViewer：url-list 响应式，下载完一张追加一个 blob，翻页永远无闪烁 -->
-        <el-image-viewer
-            v-if="viewerVisible"
-            :url-list="viewerUrlList"
-            :initial-index="viewerInitialIndex"
-            teleported
-            hide-on-click-modal
-            close-on-press-escape
-            @close="onViewerClose"
-            @switch="onViewerSwitch"
-        />
-
+        <!-- 【隐形预加载容器】 -->
+        <!-- 修复点1：使用 template v-for 解决语法报错 -->
+        <div class="hidden-preloader">
+          <template v-for="item in catalogItems" :key="'preload-' + item.pageNo">
+            <img
+                v-if="item.url"
+                :src="item.url"
+                loading="eager"
+                alt=""
+            />
+          </template>
+        </div>
 
       </div>
 
@@ -162,10 +169,10 @@
 </template>
 
 <script setup lang="ts">
-import {computed, nextTick, onMounted, onUnmounted, ref} from 'vue'
+import {computed, onMounted, onUnmounted, ref} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {ArrowLeft, CircleCheckFilled, Loading, Picture as IconPicture, Reading} from '@element-plus/icons-vue'
-import {ElIcon, ElImage, ElImageViewer, ElMessage, ElTooltip} from 'element-plus'
+import {ElIcon, ElImage, ElMessage, ElTooltip} from 'element-plus'
 import type {UnifiedBookModel, UserBookRelation} from '@/types/book'
 import {ShelfApi} from '@/api/shelf'
 import {useUserStore} from '@/stores/user'
@@ -190,45 +197,6 @@ interface CatalogItem {
 const catalogItems = ref<CatalogItem[]>([])
 const TRANSPARENT_Pixel = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 
-// ─── Blob 内存管理 ────────────────────────────────────────────────────────────
-// 以 pageNo 为 key，存储所有已生成的 blob ObjectURL，供统一 revoke
-const blobUrlMap = new Map<number, string>()
-
-/**
- * 核心下载函数：fetch → blob → objectURL
- * - 先查内存 map，命中直接返回，不发网络请求
- * - 未命中则下载，写入 map 和 item.url
- * - 下载完成后，如果 Viewer 当前正好停在这张，直接更新 Viewer 内部 img src，实现无感切换
- */
-const fetchAndCacheBlob = async (item: CatalogItem): Promise<void> => {
-  if (blobUrlMap.has(item.pageNo)) {
-    return
-  }
-  try {
-    const signedUrl = await ShelfApi.getPageWebpUrl(bookId, item.pageNo)
-    if (!signedUrl) {
-      return
-    }
-    const response = await fetch(signedUrl)
-    if (!response.ok) {
-      return
-    }
-    const blob = await response.blob()
-    const objectUrl = URL.createObjectURL(blob)
-    blobUrlMap.set(item.pageNo, objectUrl)
-    item.url = objectUrl
-
-    // 下载完立即同步到 viewerUrlList，Viewer 响应式感知，无需任何 DOM hack
-    const itemIndex = catalogItems.value.indexOf(item)
-    console.log(`[fetchAndCacheBlob] pageNo=${item.pageNo}, itemIndex=${itemIndex}, objectUrl=${objectUrl.substring(0, 30)}`)
-    if (itemIndex !== -1) {
-      syncViewerUrl(itemIndex, objectUrl)
-    }
-  } catch (e) {
-    console.error(`[Catalog] 下载第 ${item.pageNo} 页失败`, e)
-  }
-}
-
 // 核心配置
 const CARD_WIDTH = 145  // 固定卡片宽度
 const MIN_GAP = 20      // 最小间距
@@ -247,32 +215,10 @@ const visibleCatalogItems = computed(() => {
   return catalogItems.value.slice(0, maxVisibleCount.value)
 })
 
-// ─── 独立 Viewer 状态 ─────────────────────────────────────────────────────────
-const viewerVisible = ref(false)
-const viewerInitialIndex = ref(0)
-// 响应式列表：下载完一张就 push 一个 blob url，Viewer 实时感知
-const viewerUrlList = ref<string[]>([])
-
-// fetchAndCacheBlob 下载完后，同步追加到 viewerUrlList
-// viewerUrlList[i] 对应 catalogItems[i]，严格保持顺序
-const syncViewerUrl = (index: number, blobUrl: string) => {
-  // 补齐中间的空位
-  while (viewerUrlList.value.length <= index) {
-    viewerUrlList.value.push(TRANSPARENT_Pixel)
-  }
-  // 必须用 splice 而不是下标赋值，Vue 3 才能检测到数组变化
-  viewerUrlList.value.splice(index, 1, blobUrl)
-  console.log(`[syncViewerUrl] index=${index}, viewerUrlList长度=${viewerUrlList.value.length}, 该位置前30字符=${blobUrl.substring(0, 30)}`)
-
-  // el-image-viewer 列表更新后不会重新渲染当前图
-  // 如果更新的正好是 Viewer 当前停着的那张，直接更新 DOM
-  if (viewerVisible.value && currentViewerIndex.value === index) {
-    const viewerImg = document.querySelector<HTMLImageElement>('.el-image-viewer__canvas img')
-    if (viewerImg) {
-      viewerImg.src = blobUrl
-    }
-  }
-}
+// 计算全量图片的预览列表，确保大图预览时能看到所有页面
+const allPreviewUrlList = computed(() =>
+    catalogItems.value.map(it => it.url || TRANSPARENT_Pixel)
+)
 
 const shareBook = () => {
 
@@ -337,62 +283,11 @@ const handleBack = () => {
     router.push('/square')
   }
 }
-// 首屏并发加载：只下载可见的前 N 张
-const loadFirstScreen = async () => {
-  const count = maxVisibleCount.value > 0 ? maxVisibleCount.value : 5
-  await Promise.allSettled(
-      catalogItems.value.slice(0, count).map(item => fetchAndCacheBlob(item))
-  )
-}
-
-// ─── Viewer 驱动的补位下载 ────────────────────────────────────────────────────
-const currentViewerIndex = ref(-1)
-let prefetchLock = false
-
-const prefetchOffset = async (viewerIndex: number) => {
-  if (prefetchLock) {
-    return
+const loadCatalogItem = async (item: CatalogItem) => {
+  const url = await ShelfApi.getPageWebpUrl(bookId, item.pageNo);
+  if (url) {
+    item.url = url
   }
-  prefetchLock = true
-  try {
-    const N = maxVisibleCount.value > 0 ? maxVisibleCount.value : 5
-    const start = N
-    const end = Math.min(viewerIndex + N, catalogItems.value.length - 1)
-    for (let i = start; i <= end; i++) {
-      const item = catalogItems.value[i]
-      if (!item) {
-        continue
-      }
-      await fetchAndCacheBlob(item)
-    }
-  } finally {
-    prefetchLock = false
-  }
-}
-
-// 点击缩略图：打开独立 Viewer
-const openViewer = (index: number) => {
-  currentViewerIndex.value = index
-  viewerInitialIndex.value = index
-  viewerVisible.value = true
-  prefetchOffset(index)
-}
-
-// Viewer 翻页事件：重建 Viewer，让它从一开始就拿到正确的 blob
-// 而不是事后替换 src（事后替换永远有闪烁，因为 Viewer 内部先渲染了透明像素）
-const onViewerSwitch = async (index: number) => {
-  currentViewerIndex.value = index
-  prefetchOffset(index)
-
-  // 先销毁，再重建，重建时 initial-index 指向的位置已经是 blob
-  viewerVisible.value = false
-  viewerInitialIndex.value = index
-  await nextTick()
-  viewerVisible.value = true
-}
-
-const onViewerClose = () => {
-  viewerVisible.value = false
 }
 
 // 计算能放几个的核心函数
@@ -414,6 +309,56 @@ const calcCapacity = () => {
 
   if (finalCount > 0) {
     maxVisibleCount.value = finalCount
+  }
+}
+
+// 修复点2：【智能分批加载】逻辑
+const loadInBatches = async () => {
+  const totalItems = catalogItems.value.length
+
+  // 1. 优先加载可见的 (如果没有计算出来，默认加载前5个)
+  const initialBatchSize = maxVisibleCount.value > 0 ? maxVisibleCount.value : 5
+
+  // 加载第一批
+  await processBatch(0, initialBatchSize)
+
+  // 2. 剩下的分批加载，每批5个，间隔 500ms
+  let currentIndex = initialBatchSize
+  const BATCH_SIZE = 5
+
+  const loadNextBatch = async () => {
+    if (currentIndex >= totalItems) {
+      return
+    }
+
+    // 暂停一会，让出主线程和网络
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    await processBatch(currentIndex, BATCH_SIZE)
+    currentIndex += BATCH_SIZE
+
+    // 递归调用加载下一批
+    await loadNextBatch()
+  }
+
+  // 启动后续加载
+  await loadNextBatch()
+}
+
+// 辅助函数：加载指定范围的图片
+const processBatch = async (start: number, count: number) => {
+  const end = Math.min(start + count, catalogItems.value.length)
+  const promises: Promise<void>[] = []
+
+  for (let i = start; i < end; i++) {
+    const item = catalogItems.value[i]
+    if (item && !item.url) {
+      promises.push(loadCatalogItem(item))
+    }
+  }
+
+  if (promises.length > 0) {
+    await Promise.allSettled(promises)
   }
 }
 
@@ -453,8 +398,9 @@ onMounted(async () => {
             resizeObserver.observe(containerRef.value)
           }
 
-          // 3. 只下载首屏可见的几张，其余等用户打开 Viewer 再补位
-          loadFirstScreen()
+          // 3. 【启动分批加载】
+          // 此时 maxVisibleCount 应该已经算出来了，会优先加载可见的
+          loadInBatches()
 
         }, 100)
       }
@@ -470,9 +416,6 @@ onUnmounted(() => {
   if (resizeObserver) {
     resizeObserver.disconnect()
   }
-  // 释放所有 blob ObjectURL，防止 SPA 内存泄漏
-  blobUrlMap.forEach((blobUrl) => URL.revokeObjectURL(blobUrl))
-  blobUrlMap.clear()
 })
 </script>
 
@@ -798,6 +741,24 @@ onUnmounted(() => {
   padding: 10px 2px 20px 2px;
 }
 
+/* 隐形预加载容器 */
+.hidden-preloader {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  z-index: -1;
+  opacity: 0;
+  top: 0;
+  left: 0;
+
+  img {
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+}
 
 .preview-item-wrapper {
   flex-shrink: 0;
