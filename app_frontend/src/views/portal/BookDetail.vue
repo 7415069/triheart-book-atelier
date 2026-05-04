@@ -110,20 +110,13 @@
               class="preview-item-wrapper"
               :style="{ width: `${CARD_WIDTH}px` }"
           >
-            <!--
-               1. preview-src-list: 绑定完整列表
-            -->
             <el-image
                 class="real-catalog-img"
                 :src="item.url || ''"
-                :preview-src-list="allPreviewUrlList"
-                :initial-index="index"
                 fit="cover"
                 loading="eager"
-                preview-teleported
-                hide-on-click-modal
-                close-on-press-escape
                 :style="{ height: `${CARD_WIDTH * 1.414}px` }"
+                @click="openViewer(index)"
             >
               <template #placeholder>
                 <div class="image-slot loading-slot">
@@ -146,18 +139,49 @@
           </div>
         </div>
 
-        <!-- 【隐形预加载容器】 -->
-        <!-- 修复点1：使用 template v-for 解决语法报错 -->
-        <div class="hidden-preloader">
-          <template v-for="item in catalogItems" :key="'preload-' + item.pageNo">
-            <img
-                v-if="item.url"
-                :src="item.url"
-                loading="eager"
-                alt=""
-            />
-          </template>
-        </div>
+        <!-- 自定义 Viewer：翻页前先等 blob 就绪，彻底消除闪烁 -->
+        <Teleport to="body">
+          <div v-if="viewerVisible" class="custom-viewer" @click.self="onViewerClose">
+            <!-- 关闭按钮 -->
+            <button class="viewer-close" @click="onViewerClose">&#x2715;</button>
+
+            <!-- 主体：左箭头 + 图片 + 右箭头 -->
+            <div class="viewer-body">
+              <button
+                  class="viewer-arrow"
+                  :disabled="viewerCurrentIndex <= 0 || viewerSwitching"
+                  @click="viewerGo(viewerCurrentIndex - 1)"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M13 4L7 10L13 16" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+
+              <div class="viewer-canvas">
+                <img v-if="viewerCurrentBlob" :src="viewerCurrentBlob" class="viewer-img" :class="{ 'viewer-img--loading': viewerSwitching }" alt=""/>
+                <div v-else class="viewer-placeholder">
+                  <el-icon class="is-loading">
+                    <Loading/>
+                  </el-icon>
+                </div>
+              </div>
+
+              <button
+                  class="viewer-arrow"
+                  :disabled="viewerCurrentIndex >= catalogItems.length - 1 || viewerSwitching"
+                  @click="viewerGo(viewerCurrentIndex + 1)"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M7 4L13 10L7 16" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- 页码 -->
+            <div class="viewer-counter">{{ viewerCurrentIndex + 1 }} / {{ catalogItems.length }}</div>
+          </div>
+        </Teleport>
+
 
       </div>
 
@@ -195,7 +219,66 @@ interface CatalogItem {
 }
 
 const catalogItems = ref<CatalogItem[]>([])
-const TRANSPARENT_Pixel = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+
+
+// ─── Blob 内存管理 ────────────────────────────────────────────────────────────
+const blobUrlMap = new Map<number, string>()
+const inflightMap = new Map<number, Promise<string | null>>()
+let lastDownloadedIndex = -1
+
+/**
+ * 原子操作：下载单张 → blob → objectURL
+ * 同一张图全局只有一个 fetch，命中缓存直接返回
+ */
+const fetchOnePage = (index: number): Promise<string | null> => {
+  const item = catalogItems.value[index]
+  if (!item) {
+    return Promise.resolve(null)
+  }
+
+  if (blobUrlMap.has(item.pageNo)) {
+    return Promise.resolve(blobUrlMap.get(item.pageNo)!)
+  }
+  if (inflightMap.has(item.pageNo)) {
+    return inflightMap.get(item.pageNo)!
+  }
+
+  const promise = (async (): Promise<string | null> => {
+    try {
+      const signedUrl = await ShelfApi.getPageWebpUrl(bookId, item.pageNo)
+      if (!signedUrl) {
+        return null
+      }
+      const response = await fetch(signedUrl)
+      if (!response.ok) {
+        return null
+      }
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      blobUrlMap.set(item.pageNo, objectUrl)
+      item.url = objectUrl
+      lastDownloadedIndex = Math.max(lastDownloadedIndex, index)
+      return objectUrl
+    } catch (e) {
+      console.error(`[Catalog] 下载第 ${item.pageNo} 页失败`, e)
+      return null
+    } finally {
+      inflightMap.delete(item.pageNo)
+    }
+  })()
+
+  inflightMap.set(item.pageNo, promise)
+  return promise
+}
+
+/** 顺序串行下载 fromIndex ~ toIndex */
+const fetchSequential = async (fromIndex: number, toIndex: number): Promise<void> => {
+  const start = Math.max(fromIndex, 0)
+  const end = Math.min(toIndex, catalogItems.value.length - 1)
+  for (let i = start; i <= end; i++) {
+    await fetchOnePage(i)
+  }
+}
 
 // 核心配置
 const CARD_WIDTH = 145  // 固定卡片宽度
@@ -215,10 +298,81 @@ const visibleCatalogItems = computed(() => {
   return catalogItems.value.slice(0, maxVisibleCount.value)
 })
 
-// 计算全量图片的预览列表，确保大图预览时能看到所有页面
-const allPreviewUrlList = computed(() =>
-    catalogItems.value.map(it => it.url || TRANSPARENT_Pixel)
-)
+// ─── 自定义 Viewer 状态 ───────────────────────────────────────────────────────
+const viewerVisible = ref(false)
+const viewerCurrentIndex = ref(0)
+const viewerCurrentBlob = ref<string | null>(null)
+const viewerSwitching = ref(false)  // 翻页中（等待下载），用于禁用按钮 + 淡出效果
+
+// 串行补位队列
+let prefetchChain: Promise<void> = Promise.resolve()
+
+const schedulePrefetch = (viewerIndex: number) => {
+  const N = maxVisibleCount.value > 0 ? maxVisibleCount.value : 5
+  const targetIndex = Math.min(viewerIndex + N, catalogItems.value.length - 1)
+  if (targetIndex <= lastDownloadedIndex) {
+    return
+  }
+  prefetchChain = prefetchChain.then(() =>
+      fetchSequential(lastDownloadedIndex + 1, targetIndex)
+  )
+}
+
+/**
+ * 核心：切换到指定索引
+ * 1. 标记 switching，禁用翻页按钮
+ * 2. await fetchOnePage(index)，blob 就绪后再赋值给 viewerCurrentBlob
+ * 3. img src 变化 → 浏览器渲染新图，全程不出现透明像素
+ */
+const viewerGo = async (index: number) => {
+  if (index < 0 || index >= catalogItems.value.length) {
+    return
+  }
+  if (viewerSwitching.value) {
+    return
+  }
+
+  viewerSwitching.value = true
+  viewerCurrentIndex.value = index
+  const blob = await fetchOnePage(index)
+  viewerCurrentBlob.value = blob
+  viewerSwitching.value = false
+
+  // 后台补位，不阻塞显示
+  schedulePrefetch(index)
+}
+
+/** 点击缩略图打开 Viewer */
+const openViewer = async (index: number) => {
+  viewerCurrentBlob.value = null
+  viewerCurrentIndex.value = index
+  viewerVisible.value = true
+  // 等目标 blob 就绪后再显示图片（Viewer 壳已打开，显示 loading）
+  const blob = await fetchOnePage(index)
+  viewerCurrentBlob.value = blob
+  schedulePrefetch(index)
+}
+
+const onViewerClose = () => {
+  viewerVisible.value = false
+  viewerCurrentBlob.value = null
+}
+
+// ESC 关闭
+const onKeydown = (e: KeyboardEvent) => {
+  if (!viewerVisible.value) {
+    return
+  }
+  if (e.key === 'Escape') {
+    onViewerClose()
+  }
+  if (e.key === 'ArrowLeft') {
+    viewerGo(viewerCurrentIndex.value - 1)
+  }
+  if (e.key === 'ArrowRight') {
+    viewerGo(viewerCurrentIndex.value + 1)
+  }
+}
 
 const shareBook = () => {
 
@@ -283,11 +437,10 @@ const handleBack = () => {
     router.push('/square')
   }
 }
-const loadCatalogItem = async (item: CatalogItem) => {
-  const url = await ShelfApi.getPageWebpUrl(bookId, item.pageNo);
-  if (url) {
-    item.url = url
-  }
+/** 步骤1：页面加载，顺序串行下载前 N 张 */
+const loadFirstScreen = async () => {
+  const N = maxVisibleCount.value > 0 ? maxVisibleCount.value : 5
+  await fetchSequential(0, N - 1)
 }
 
 // 计算能放几个的核心函数
@@ -312,59 +465,10 @@ const calcCapacity = () => {
   }
 }
 
-// 修复点2：【智能分批加载】逻辑
-const loadInBatches = async () => {
-  const totalItems = catalogItems.value.length
-
-  // 1. 优先加载可见的 (如果没有计算出来，默认加载前5个)
-  const initialBatchSize = maxVisibleCount.value > 0 ? maxVisibleCount.value : 5
-
-  // 加载第一批
-  await processBatch(0, initialBatchSize)
-
-  // 2. 剩下的分批加载，每批5个，间隔 500ms
-  let currentIndex = initialBatchSize
-  const BATCH_SIZE = 5
-
-  const loadNextBatch = async () => {
-    if (currentIndex >= totalItems) {
-      return
-    }
-
-    // 暂停一会，让出主线程和网络
-    await new Promise(resolve => setTimeout(resolve, 500))
-
-    await processBatch(currentIndex, BATCH_SIZE)
-    currentIndex += BATCH_SIZE
-
-    // 递归调用加载下一批
-    await loadNextBatch()
-  }
-
-  // 启动后续加载
-  await loadNextBatch()
-}
-
-// 辅助函数：加载指定范围的图片
-const processBatch = async (start: number, count: number) => {
-  const end = Math.min(start + count, catalogItems.value.length)
-  const promises: Promise<void>[] = []
-
-  for (let i = start; i < end; i++) {
-    const item = catalogItems.value[i]
-    if (item && !item.url) {
-      promises.push(loadCatalogItem(item))
-    }
-  }
-
-  if (promises.length > 0) {
-    await Promise.allSettled(promises)
-  }
-}
-
 let resizeObserver: ResizeObserver | null = null
 
 onMounted(async () => {
+  window.addEventListener('keydown', onKeydown)
   try {
     loading.value = true
     const tasks: Promise<any>[] = [ShelfApi.getBookDetail(bookId)]
@@ -398,9 +502,8 @@ onMounted(async () => {
             resizeObserver.observe(containerRef.value)
           }
 
-          // 3. 【启动分批加载】
-          // 此时 maxVisibleCount 应该已经算出来了，会优先加载可见的
-          loadInBatches()
+          // 3. 只下载首屏可见的几张，其余等用户打开 Viewer 再补位
+          loadFirstScreen()
 
         }, 100)
       }
@@ -413,9 +516,13 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
   if (resizeObserver) {
     resizeObserver.disconnect()
   }
+  // 释放所有 blob ObjectURL，防止 SPA 内存泄漏
+  blobUrlMap.forEach((blobUrl) => URL.revokeObjectURL(blobUrl))
+  blobUrlMap.clear()
 })
 </script>
 
@@ -741,24 +848,6 @@ onUnmounted(() => {
   padding: 10px 2px 20px 2px;
 }
 
-/* 隐形预加载容器 */
-.hidden-preloader {
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-  z-index: -1;
-  opacity: 0;
-  top: 0;
-  left: 0;
-
-  img {
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-    pointer-events: none;
-  }
-}
 
 .preview-item-wrapper {
   flex-shrink: 0;
@@ -818,6 +907,122 @@ onUnmounted(() => {
     grid-column: 1 / -1;
     height: auto;
   }
+}
+
+/* ─── 自定义 Viewer（Teleport 到 body，必须用 :global）─────────────────────── */
+:global(.custom-viewer) {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 左箭头 + 图片区 + 右箭头，水平排列，垂直居中 */
+:global(.viewer-body) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+:global(.viewer-canvas) {
+  max-width: 80vw;
+  max-height: 85vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+:global(.viewer-img) {
+  max-width: 80vw;
+  max-height: 85vh;
+  object-fit: contain;
+  border-radius: 4px;
+  transition: opacity 0.15s ease;
+  display: block;
+}
+
+:global(.viewer-img--loading) {
+  opacity: 0.4;
+}
+
+:global(.viewer-placeholder) {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 32px;
+}
+
+/* 左右箭头按钮 */
+:global(.viewer-arrow) {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.2s;
+}
+
+:global(.viewer-arrow:hover:not(:disabled)) {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+:global(.viewer-arrow:disabled) {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+/* 关闭按钮：右上角 absolute */
+:global(.viewer-close) {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  padding: 0;
+  transition: background 0.2s;
+}
+
+:global(.viewer-close:hover) {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+:global(.viewer-counter) {
+  margin-top: 16px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 14px;
+  border-radius: 20px;
+  pointer-events: none;
+  flex-shrink: 0;
 }
 
 @media (max-width: 768px) {
