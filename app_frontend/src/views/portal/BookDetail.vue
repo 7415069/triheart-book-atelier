@@ -189,12 +189,6 @@ const book = ref<UnifiedBookModel | null>(null)
 const userBookRelation = ref<UserBookRelation | null>(null)
 const realCoverUrl = ref('')
 
-interface CatalogItem {
-  pageNo: number;
-  url: string
-}
-
-const catalogItems = ref<CatalogItem[]>([])
 const TRANSPARENT_Pixel = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 
 // 核心配置
@@ -207,6 +201,12 @@ const paymentDialogRef = ref();
 
 const isPurchased = computed(() => userBookRelation.value?.purchaseStatus === '1')
 
+interface CatalogItem {
+  pageNo: number;
+  url: string
+}
+
+const catalogItems = ref<CatalogItem[]>([])
 // 计算最终要展示的列表（截取屏幕能放下的数量）
 const visibleCatalogItems = computed(() => {
   if (maxVisibleCount.value <= 0) {
@@ -214,6 +214,13 @@ const visibleCatalogItems = computed(() => {
   }
   return catalogItems.value.slice(0, maxVisibleCount.value)
 })
+
+const loadCatalogItem = async (item: CatalogItem) => {
+  const url = await ShelfApi.getPageWebpUrl(bookId, item.pageNo);
+  if (url) {
+    item.url = url
+  }
+}
 
 // 计算全量图片的预览列表，确保大图预览时能看到所有页面
 const allPreviewUrlList = computed(() =>
@@ -283,12 +290,7 @@ const handleBack = () => {
     router.push('/square')
   }
 }
-const loadCatalogItem = async (item: CatalogItem) => {
-  const url = await ShelfApi.getPageWebpUrl(bookId, item.pageNo);
-  if (url) {
-    item.url = url
-  }
-}
+
 
 // 计算能放几个的核心函数
 const calcCapacity = () => {
