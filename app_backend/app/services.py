@@ -4,6 +4,7 @@ import base64
 import json
 import os
 import re
+import uuid
 from hashlib import md5
 from time import time
 from typing import List, Tuple, Callable, Dict, Any, Sequence, Generic
@@ -14,7 +15,7 @@ from brtech_backend.core import database
 from brtech_backend.core.config import app_settings
 from brtech_backend.core.models import M
 from brtech_backend.core.schemas import UniqueConstraint
-from brtech_backend.core.services import StringPKeyRecurseService, StringPKeyService
+from brtech_backend.core.services import StringPKeyRecurseService, StringPKeyService, Service
 from brtech_backend.dictionary.services import StringPKeyWithDictionaryService
 from brtech_backend.payment.handler import PaymentDispatcher, PaymentServiceMixin
 from brtech_backend.payment.models import PayOrderModel
@@ -73,6 +74,32 @@ async def run_scan_coords_task(user_id: str, book_id: str, task_id: str):
   async with session_maker() as new_db:
     service = TriHeartBookService(new_db)
     await service.scan_coordinates_logic(user_id, book_id)
+
+
+async def cdn_sign_url(service: Service, user_id, raw_path: str) -> str:
+  if thba_app_settings.CDN_OSS_ENABLE:
+    secret_key = thba_app_settings.CDN_OSS_SECRET_KEY
+    full_path = f"/{thba_app_settings.OSS_BUCKET_NAME}/{raw_path}"
+    path = re.sub(r'/+', '/', full_path)
+    extra_params = {}
+    if thba_app_settings.CDN_OSS_PROVIDER == "Gcore":
+      ttl = 3600  # TTL of URL (in sec)
+      expires = int(time()) + ttl  # Token generation
+      token_hash = md5(f"{expires}{path} {secret_key}".encode()).digest()
+      token = base64.b64encode(token_hash).decode().replace("\n", "").replace("+", "-").replace("/", "_").replace("=", "")
+      extra_params = {"md5": token, "expires": str(expires)}
+    if thba_app_settings.CDN_OSS_PROVIDER == "EdgeOne":
+      timestamp = str(int(time()))
+      rand = str(uuid.uuid4().hex[:8])
+      uid = str(user_id) if user_id else "0"
+      hash_str = f"{path}-{timestamp}-{rand}-{uid}-{secret_key}"
+      token_hash = md5(hash_str.encode('utf-8')).hexdigest()
+      token = f"{timestamp}-{rand}-{uid}-{token_hash}"
+      extra_params = {"md5": token}
+    raw_sign_url = await service.get_oss_download_sign_url(user_id, raw_path, "", extra_params)
+    return raw_sign_url.replace(thba_app_settings.OSS_ENDPOINT, thba_app_settings.CDN_OSS_ENDPOINT)
+  else:
+    return await service.get_oss_download_sign_url(user_id, raw_path, "")
 
 
 # =========================================================
@@ -191,19 +218,29 @@ class TriHeartPageService(StringPKeyService[TriHeartPageModel, TriHeartPageCrud,
     if not target_path:
       raise HTTPException(status_code=404, detail="图片资源缺失")
 
-    if thba_app_settings.CDN_OSS_ENABLE and thba_app_settings.CDN_OSS_PROVIDER == "Gcore":
-      secret_key = thba_app_settings.CDN_OSS_SECRET_KEY
-      raw_path = f"/{thba_app_settings.OSS_BUCKET_NAME}/{target_path}"
-      path = re.sub(r'/+', '/', raw_path)
-      ttl = 3600  # TTL of URL (in sec)
-      expires = int(time()) + ttl  # Token generation
-      token_hash = md5(f"{expires}{path} {secret_key}".encode()).digest()
-      token = base64.b64encode(token_hash).decode().replace("\n", "").replace("+", "-").replace("/", "_").replace("=", "")
-      extra_params = {"md5": token, "expires": str(expires)}
-      raw_sign_url = await self.get_oss_download_sign_url(user_id, target_path, "", extra_params)
-      sign_url = raw_sign_url.replace(thba_app_settings.OSS_ENDPOINT, thba_app_settings.CDN_OSS_ENDPOINT)
-    else:
-      sign_url = await self.get_oss_download_sign_url(user_id, target_path, "")
+    sign_url = await cdn_sign_url(self, user_id, target_path)
+    # if thba_app_settings.CDN_OSS_ENABLE:
+    #   secret_key = thba_app_settings.CDN_OSS_SECRET_KEY
+    #   raw_path = f"/{thba_app_settings.OSS_BUCKET_NAME}/{target_path}"
+    #   path = re.sub(r'/+', '/', raw_path)
+    #   extra_params = {}
+    #   if thba_app_settings.CDN_OSS_PROVIDER == "Gcore":
+    #     ttl = 3600  # TTL of URL (in sec)
+    #     expires = int(time()) + ttl  # Token generation
+    #     token_hash = md5(f"{expires}{path} {secret_key}".encode()).digest()
+    #     token = base64.b64encode(token_hash).decode().replace("\n", "").replace("+", "-").replace("/", "_").replace("=", "")
+    #     extra_params = {"md5": token, "expires": str(expires)}
+    #   if thba_app_settings.CDN_OSS_PROVIDER == "EdgeOne":
+    #     timestamp = str(int(time()))
+    #     rand = "33"
+    #     uid = "55"
+    #     hash_str = f"{path}-{timestamp}-{rand}-{uid}-{secret_key}"
+    #     token = md5(hash_str.encode('utf-8')).hexdigest()
+    #     extra_params = {"md5": token}
+    #   raw_sign_url = await self.get_oss_download_sign_url(user_id, target_path, "", extra_params)
+    #   sign_url = raw_sign_url.replace(thba_app_settings.OSS_ENDPOINT, thba_app_settings.CDN_OSS_ENDPOINT)
+    # else:
+    #   sign_url = await self.get_oss_download_sign_url(user_id, target_path, "")
     # https://minio.brtech.top/thba/681186536234029056/2026/0417/TriHeartBookModel-700345638113644544/webp/original/1.webp?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=CcLG5FcYksvDUE6oca1e%2F20260422%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260422T110341Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=ae51a62fe4909f6ec44052ee90bb6fb2a39e6e12ce6b5b8621b05a20a3510036
 
     return sign_url
@@ -220,19 +257,29 @@ class TriHeartBookService(StringPKeyWithDictionaryService[TriHeartBookModel, Tri
     book: TriHeartBookModel | None = await self.get(user_id, book_id)
     sign_url: str = ""
     if book:
-      if thba_app_settings.CDN_OSS_ENABLE and thba_app_settings.CDN_OSS_PROVIDER == "Gcore":
-        secret_key = thba_app_settings.CDN_OSS_SECRET_KEY
-        raw_path = f"/{thba_app_settings.OSS_BUCKET_NAME}/{book.book_cover}"
-        path = re.sub(r'/+', '/', raw_path)
-        ttl = 3600  # TTL of URL (in sec)
-        expires = int(time()) + ttl  # Token generation
-        token_hash = md5(f"{expires}{path} {secret_key}".encode()).digest()
-        token = base64.b64encode(token_hash).decode().replace("\n", "").replace("+", "-").replace("/", "_").replace("=", "")
-        extra_params = {"md5": token, "expires": str(expires)}
-        raw_sign_url = await self.get_oss_download_sign_url(user_id, book.book_cover, "", extra_params)
-        sign_url = raw_sign_url.replace(thba_app_settings.OSS_ENDPOINT, thba_app_settings.CDN_OSS_ENDPOINT)
-      else:
-        sign_url = await self.get_oss_download_sign_url(user_id, book.book_cover, "")
+      sign_url = await cdn_sign_url(self, user_id, book.book_cover)
+      # if thba_app_settings.CDN_OSS_ENABLE:
+      #   secret_key = thba_app_settings.CDN_OSS_SECRET_KEY
+      #   raw_path = f"/{thba_app_settings.OSS_BUCKET_NAME}/{book.book_cover}"
+      #   path = re.sub(r'/+', '/', raw_path)
+      #   extra_params = {}
+      #   if thba_app_settings.CDN_OSS_PROVIDER == "Gcore":
+      #     ttl = 3600  # TTL of URL (in sec)
+      #     expires = int(time()) + ttl  # Token generation
+      #     token_hash = md5(f"{expires}{path} {secret_key}".encode()).digest()
+      #     token = base64.b64encode(token_hash).decode().replace("\n", "").replace("+", "-").replace("/", "_").replace("=", "")
+      #     extra_params = {"md5": token, "expires": str(expires)}
+      #   if thba_app_settings.CDN_OSS_PROVIDER == "EdgeOne":
+      #     timestamp = str(int(time()))
+      #     rand = "33"
+      #     uid = "55"
+      #     hash_str = f"{path}-{timestamp}-{rand}-{uid}-{secret_key}"
+      #     token = md5(hash_str.encode('utf-8')).hexdigest()
+      #     extra_params = {"md5": token}
+      #   raw_sign_url = await self.get_oss_download_sign_url(user_id, book.book_cover, "", extra_params)
+      #   sign_url = raw_sign_url.replace(thba_app_settings.OSS_ENDPOINT, thba_app_settings.CDN_OSS_ENDPOINT)
+      # else:
+      #   sign_url = await self.get_oss_download_sign_url(user_id, book.book_cover, "")
     return sign_url
 
   async def pre_create(self, user_id: str, model: TriHeartBookModel) -> None:

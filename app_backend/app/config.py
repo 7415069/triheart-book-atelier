@@ -73,7 +73,7 @@ class ThbaAppSettings(AppSettings, PaySettings):
   ENABLE_FUNC_PERMISSION_VALIDATION: bool = True
 
   CDN_OSS_ENABLE: bool = True
-  CDN_OSS_PROVIDER: str = "Gcore"
+  CDN_OSS_PROVIDER: str = "EdgeOne"
   CDN_OSS_ENDPOINT: str = "minio-cdn.brtech.top"
   CDN_OSS_SECRET_KEY: str = ""
 
