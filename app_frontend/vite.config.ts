@@ -35,8 +35,8 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     proxy: {
-      '/thba/backend': {
-        target: 'http://127.0.0.1:9988',
+      '/backend': {
+        target: 'http://127.0.0.1:9876',
         changeOrigin: true,
       }
     }

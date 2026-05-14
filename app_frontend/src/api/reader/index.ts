@@ -160,4 +160,56 @@ export class Index {
     }
     return ''
   }
+
+  /** 根据 bookId 获取所有章节 */
+  static async getChapters(bookId: string): Promise<ChapterInfo[]> {
+    try {
+      const {data: response} = await request.post<Response<ChapterInfo[]>>('/chapter/query/all', {
+        bookId: bookId
+      });
+      if (response && response.flag && response.data) {
+        return response.data;
+      }
+    } catch (e) {
+      console.warn('获取章节列表失败', e);
+    }
+    return [];
+  }
+
+  /** 根据章节ID获取视频导读 */
+  static async getChapterVideo(chapterId: string): Promise<ChapterVideoInfo | null> {
+    try {
+      const {data: response} = await request.post<Response<{video: ChapterVideoInfo; signUrl: string} | null>>(
+        `/chapterVideo/byChapter/${chapterId}`
+      );
+      if (response && response.flag && response.data) {
+        return { ...response.data.video, signUrl: response.data.signUrl };
+      }
+    } catch (e) {
+      console.warn('获取章节视频失败', e);
+    }
+    return null;
+  }
+}
+
+/** 章节基础信息 */
+export interface ChapterInfo {
+  modelId: string;
+  bookId: string;
+  chapterTitle: string;
+  fromPageNo: number;
+  toPageNo: number;
+}
+
+/** 章节视频导读信息 */
+export interface ChapterVideoInfo {
+  modelId: string;
+  chapterId: string;
+  bookId: string;
+  videoPath: string;
+  scriptJson: string;
+  status: string;
+  duration: number;
+  voiceType: string;
+  signUrl?: string;
 }
