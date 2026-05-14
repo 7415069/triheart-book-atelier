@@ -26,10 +26,10 @@ from fastapi.concurrency import run_in_threadpool
 from .ai_helper import AiHelper
 from .config import thba_app_settings
 # 引入本项目依赖
-from .crud import TriHeartPageCrud, TriHeartBookCrud, TriHeartChapterCrud, TriHeartChapterPageCrud, TriHeartBookNoteCrud, TriHeartBookUserCrud, TriHeartTermCrud, TriHeartPageTermCrud, TriHeartPageAttachmentCrud
-from .models import TriHeartPageModel, TriHeartBookModel, TriHeartChapterModel, TriHeartChapterPageModel, TriHeartBookUserModel, TriHeartBookNoteModel, TriHeartPageTermModel, TriHeartTermModel, TriHeartPageAttachmentModel
+from .crud import TriHeartPageCrud, TriHeartBookCrud, TriHeartChapterCrud, TriHeartChapterPageCrud, TriHeartBookNoteCrud, TriHeartBookUserCrud, TriHeartTermCrud, TriHeartPageTermCrud, TriHeartPageAttachmentCrud, TriHeartChapterVideoCrud
+from .models import TriHeartPageModel, TriHeartBookModel, TriHeartChapterModel, TriHeartChapterPageModel, TriHeartBookUserModel, TriHeartBookNoteModel, TriHeartPageTermModel, TriHeartTermModel, TriHeartPageAttachmentModel, TriHeartChapterVideoModel
 from .pdf_helper import PdfStructure, PdfPage, PdfHelper
-from .schemas import TriHeartPageQuery, TriHeartBookQuery, TriHeartChapterQuery, TriHeartChapterPageQuery, TriHeartBookUserQuery, TriHeartBookNoteQuery, TriHeartTermQuery, TriHeartPageTermQuery, TriHeartPageAttachmentQuery
+from .schemas import TriHeartPageQuery, TriHeartBookQuery, TriHeartChapterQuery, TriHeartChapterPageQuery, TriHeartBookUserQuery, TriHeartBookNoteQuery, TriHeartTermQuery, TriHeartPageTermQuery, TriHeartPageAttachmentQuery, TriHeartChapterVideoQuery
 
 # =========================================================
 # 配置部分
@@ -74,6 +74,14 @@ async def run_scan_coords_task(user_id: str, book_id: str, task_id: str):
   async with session_maker() as new_db:
     service = TriHeartBookService(new_db)
     await service.scan_coordinates_logic(user_id, book_id)
+
+
+async def run_video_generation_task(user_id: str | None, chapter_id: str, task_id: str):
+  """视频导读生成任务 Wrapper"""
+  session_maker = database.get_session_maker()
+  async with session_maker() as new_db:
+    service = TriHeartChapterVideoService(new_db)
+    await service.generate_chapter_video(user_id, chapter_id, task_id)
 
 
 async def cdn_sign_url(service: Service, user_id, raw_path: str) -> str:
@@ -960,6 +968,319 @@ class TriHeartPageTermService(StringPKeyWithDictionaryService[TriHeartPageTermMo
 
 class TriHeartPageAttachmentService(StringPKeyWithDictionaryService[TriHeartPageAttachmentModel, TriHeartPageAttachmentCrud, TriHeartPageAttachmentQuery]):
   pass
+
+
+class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapterVideoModel, TriHeartChapterVideoCrud, TriHeartChapterVideoQuery]):
+
+  async def get_video_sign_url(self, user_id: str | None, video_id: str) -> str:
+    """获取视频签名 URL"""
+    video = await self.get(user_id, video_id)
+    if not video or not video.video_path:
+      return ""
+    return await cdn_sign_url(self, user_id, video.video_path)
+
+  async def get_by_chapter_id(self, user_id: str | None, chapter_id: str) -> TriHeartChapterVideoModel | None:
+    """根据章节 ID 获取已完成的视频"""
+    query = TriHeartChapterVideoQuery();
+    query.chapter_id = chapter_id
+    models = await self.query_all(user_id, query)
+    return models[0] if models else None
+
+  async def post_select_batch(self, user_id: str | None, models: list[TriHeartChapterVideoModel], query: TriHeartChapterVideoQuery | None = None) -> None:
+    await super().post_select_batch(user_id, models, query)
+
+  async def generate_chapter_video(self, user_id: str | None, chapter_id: str, task_id: str):
+    """
+    核心视频生成流水线：
+    1. 获取章节信息
+    2. 获取书页图片（本地已有则跳过下载）
+    3. 调用多模态 LLM 生成脚本（DB 已有则跳过，断点续跑节省费用）
+    4. 调用 Edge-TTS 生成配音（本地已有音频则跳过）
+    5. 调用 VideoRenderer 渲染视频（本地已有 MP4 则跳过）
+    6. 上传 OSS 并保存记录
+    """
+    from .video_script_helper import VideoScriptHelper
+    from .tts_helper import TtsHelper
+    from .video_renderer import VideoRenderer
+
+    chapter_service = TriHeartChapterService(self.db)
+    page_service = TriHeartPageService(self.db)
+
+    # 1. 获取章节
+    chapter = await chapter_service.get(user_id, chapter_id)
+    if not chapter or not chapter.book_id:
+      self.logger.error(f"章节 {chapter_id} 不存在")
+      await task_manager.update_progress(task_id, 100, "失败：章节不存在")
+      return
+
+    book_id = chapter.book_id
+    book = await TriHeartBookService(self.db).get(user_id, book_id)
+    book_title = book.book_title if book else ""
+
+    # 2. 检查是否已有视频记录（失败重试时保留已有 script_json 用于断点续跑）
+    var_prefix = "var/"
+    output_dir = f"{var_prefix}video/{book_id}/{chapter_id}"
+    output_path = f"{output_dir}/output.mp4"
+
+    exist = await self.get_by_chapter_id(user_id, chapter_id)
+    if exist:
+      video_model = exist
+      video_model.process_status = "1"
+      video_model.video_path = ""
+      video_model.duration = 0
+      # 保留 script_json，后续根据其内容跳过 AI 步骤（断点续跑，省钱）
+      await self.update(user_id, video_model, commit=True)
+    else:
+      video_model = TriHeartChapterVideoModel(
+          chapter_id=chapter_id,
+          book_id=book_id,
+          process_status="1",
+          voice_type=thba_app_settings.VIDEO_TTS_VOICE
+      )
+      await self.create(user_id, video_model, commit=True)
+
+    try:
+      # 3. 查询章节内所有书页
+      page_query = TriHeartPageQuery(
+          book_id=book_id,
+          begin_page_no=chapter.from_page_no,
+          end_page_no=chapter.to_page_no
+      )
+      pages = await page_service.query_all(user_id, page_query)
+      if not pages:
+        raise ValueError("章节内无书页数据")
+
+      self.logger.info(f"[视频生成] 章节 '{chapter.chapter_title}' 共 {len(pages)} 页")
+      await task_manager.update_progress(task_id, 5, f"已获取 {len(pages)} 张书页")
+
+      # 4. 下载书页图片
+      # page_local_paths key 是连续序号（1, 2, 3...），与发给 AI 的图片顺序严格对应
+      # page_images key 同样是连续序号，values 按序号顺序传给 LLM
+      # 注意：不能用真实页码（如 31/32/33）作 key，AI 不知道真实页码，它只认第几张图
+      page_images: dict[int, bytes] = {}   # {序号: 图片bytes}
+      page_local_paths: dict[int, str] = {}  # {序号: 本地路径}
+
+      local_dir = f"{var_prefix}video/{book_id}/{chapter_id}/images"
+      os.makedirs(local_dir, exist_ok=True)
+
+      # 先把磁盘上已有的图片加载进来（断点续跑：跳过已下载的图片）
+      seq = 0
+      for page in pages:
+        if not page.page_image_crop_path and not page.page_image_path:
+          continue
+        seq += 1
+        local_path = f"{local_dir}/{seq}.webp"
+        if os.path.exists(local_path) and os.path.getsize(local_path) > 100:
+          with open(local_path, "rb") as f:
+            page_images[seq] = f.read()
+          page_local_paths[seq] = local_path
+          self.logger.info(f"书页序号 {seq}（第 {page.page_no} 页）: 使用本地缓存图片")
+
+      # 下载缺失的图片
+      missing_pages = [(i + 1, page) for i, page in enumerate(
+          [p for p in pages if p.page_image_crop_path or p.page_image_path]
+      ) if (i + 1) not in page_images]
+
+      if missing_pages:
+        async with httpx.AsyncClient(timeout=60) as client:
+          for idx, (seq_no, page) in enumerate(missing_pages):
+            img_path = page.page_image_crop_path or page.page_image_path
+            sign_url = await cdn_sign_url(self, user_id, img_path)
+            try:
+              resp = await client.get(sign_url)
+              if resp.status_code == 200:
+                local_path = f"{local_dir}/{seq_no}.webp"
+                with open(local_path, "wb") as f:
+                  f.write(resp.content)
+                page_images[seq_no] = resp.content
+                page_local_paths[seq_no] = local_path
+            except Exception as e:
+              self.logger.warning(f"下载书页序号 {seq_no}（第 {page.page_no} 页）失败: {e}")
+
+            if (idx + 1) % 5 == 0:
+              await task_manager.update_progress(task_id, 5 + int(idx / len(missing_pages) * 10), f"下载书页: {idx + 1}/{len(missing_pages)}")
+
+      if not page_images:
+        raise ValueError("无法获取任何书页图片")
+
+      # 按序号顺序排列，确保传给 AI 的图片顺序和 page_local_paths 一致
+      ordered_image_bytes = [page_images[k] for k in sorted(page_images.keys())]
+
+      # 5. AI 生成脚本 — 如已有脚本则跳过（断点续跑，不重复花钱）
+      script = None
+      if video_model.script_json:
+        try:
+          script = json.loads(video_model.script_json)
+          self.logger.info(f"[视频生成] 使用已有脚本 ({len(script)}个场景)，跳过AI调用")
+          await task_manager.update_progress(task_id, 30, f"已有AI脚本 ({len(script)}个场景)")
+        except (json.JSONDecodeError, TypeError):
+          script = None
+
+      if not script:
+        await task_manager.update_progress(task_id, 15, "AI 正在分析书页内容...")
+        video_ai = VideoScriptHelper(
+            api_key=thba_app_settings.VIDEO_AI_API_KEY,
+            base_url=thba_app_settings.VIDEO_AI_BASE_URL,
+            model=thba_app_settings.VIDEO_AI_MODEL_NAME,
+            temperature=thba_app_settings.VIDEO_AI_TEMPERATURE,
+            max_tokens=thba_app_settings.VIDEO_AI_MAX_TOKENS
+        )
+
+        for attempt in range(3):
+          script = await video_ai.generate_script(
+              page_images=ordered_image_bytes,
+              book_title=book_title,
+              chapter_title=chapter.chapter_title or ""
+          )
+          if script:
+            break
+          self.logger.warning(f"LLM 脚本生成第 {attempt + 1} 次失败，重试...")
+          await asyncio.sleep(2)
+
+        if not script:
+          raise ValueError("AI 脚本生成失败（已重试 3 次）")
+
+        self.logger.info(f"[视频生成] AI 生成了 {len(script)} 个场景")
+        await task_manager.update_progress(task_id, 30, f"AI 脚本生成完成 ({len(script)} 个场景)")
+
+        # 立即持久化脚本，防止后续步骤失败后丢失（这是最贵的一步，一定要存）
+        video_model.script_json = json.dumps(script, ensure_ascii=False)
+        await self.update(user_id, video_model, commit=True)
+
+      # 6. TTS 配音（本地已有音频文件则跳过，断点续跑）
+      await task_manager.update_progress(task_id, 32, "正在生成配音...")
+      tts = TtsHelper(voice=thba_app_settings.VIDEO_TTS_VOICE)
+      audio_dir = f"{var_prefix}video/{book_id}/{chapter_id}/audio"
+      os.makedirs(audio_dir, exist_ok=True)
+
+      scene_audio_paths: dict[int, str] = {}
+      total_duration = 0.0
+      tts_newly_generated = False  # 标记本轮是否有新生成的音频，用于决定是否持久化 script
+
+      for scene in script:
+        scene_id = scene.get("scene_id", 0)
+        narration = scene.get("narration", "")
+        target_dur = scene.get("duration", 5.0)
+
+        audio_path = f"{audio_dir}/scene_{scene_id}.mp3"
+
+        if os.path.exists(audio_path) and os.path.getsize(audio_path) > 100:
+          # 音频已存在，直接复用。audio_duration 是上轮 TTS 实测时长，比 AI 估算的更准确
+          existing_dur = scene.get("audio_duration", target_dur)
+          scene_audio_paths[scene_id] = audio_path
+          total_duration += existing_dur
+          scene["duration"] = existing_dur
+          self.logger.info(f"场景 {scene_id}: 跳过已存在的音频，时长 {existing_dur:.1f}s")
+        else:
+          dur = await tts.synthesize(narration, audio_path, target_dur)
+          if dur > 0:
+            scene_audio_paths[scene_id] = audio_path
+            total_duration += dur
+            scene["duration"] = dur
+            scene["audio_duration"] = dur  # 记录实测时长
+            tts_newly_generated = True
+
+        progress = 32 + int(len(scene_audio_paths) / len(script) * 18)
+        await task_manager.update_progress(task_id, progress, f"配音中: {len(scene_audio_paths)}/{len(script)}")
+
+      if not scene_audio_paths:
+        raise ValueError("TTS 配音全部失败")
+
+      # TTS 完成后，把带有实测 audio_duration 的 script 持久化回 DB
+      # 这样下次重试时，跳过已有音频的场景能拿到准确时长
+      if tts_newly_generated:
+        video_model.script_json = json.dumps(script, ensure_ascii=False)
+        await self.update(user_id, video_model, commit=True)
+        self.logger.info("[视频生成] TTS 完成，已持久化含实测时长的脚本")
+
+      # 7. 渲染视频（检查是否已有渲染结果）
+      await task_manager.update_progress(task_id, 50, "正在渲染视频...")
+
+      if os.path.exists(output_path) and os.path.getsize(output_path) > 1024:
+        self.logger.info(f"跳过渲染，使用已有视频文件 {output_path}")
+        await task_manager.update_progress(task_id, 80, "已有渲染结果，跳过渲染")
+      else:
+        renderer = VideoRenderer(
+            output_width=thba_app_settings.VIDEO_OUTPUT_WIDTH,
+            output_height=thba_app_settings.VIDEO_OUTPUT_HEIGHT
+        )
+        await run_in_threadpool(
+            renderer.render,
+            scenes=script,
+            page_image_paths=page_local_paths,
+            scene_audio_paths=scene_audio_paths,
+            output_path=output_path
+        )
+        await task_manager.update_progress(task_id, 80, "视频渲染完成，正在上传...")
+
+      # 8. 上传视频至 OSS
+      object_key = f"video/{book_id}/{chapter_id}/chapter_video_{chapter_id}.mp4"
+      content_type = "video/mp4"
+
+      upload_sign_url = await self.get_oss_upload_sign_url(user_id, object_key, content_type=content_type)
+      async with httpx.AsyncClient(timeout=120) as client:
+        with open(output_path, "rb") as f:
+          resp = await client.put(
+              url=upload_sign_url["uploadUrl"],
+              content=f.read(),
+              headers=upload_sign_url["headers"]
+          )
+          resp.raise_for_status()
+
+      # 9. 更新数据库记录
+      video_model.video_path = object_key
+      video_model.script_json = json.dumps(script, ensure_ascii=False)
+      video_model.duration = round(total_duration, 1)
+      video_model.process_status = "2"
+      await self.update(user_id, video_model, commit=True)
+
+      # 10. 在章节首页创建页面附件，阅读器中可直接打开视频
+      attachment_service = TriHeartPageAttachmentService(self.db)
+      attach_query = TriHeartPageAttachmentQuery(
+          book_id=book_id,
+          page_no=chapter.from_page_no
+      )
+      existing_attachments = await attachment_service.query_all(user_id, attach_query)
+      attach_display_name = f"{chapter.chapter_title} - 视频导读"
+
+      existing_attach = next(
+          (a for a in existing_attachments if a.display_name == attach_display_name),
+          None
+      )
+      if existing_attach:
+        existing_attach.file_path = object_key
+        existing_attach.extra_data = {"duration": round(total_duration, 1), "chapter_id": chapter_id}
+        await attachment_service.update(user_id, existing_attach, commit=True)
+      else:
+        new_attach = TriHeartPageAttachmentModel(
+            book_id=book_id,
+            page_no=chapter.from_page_no,
+            display_name=attach_display_name,
+            attachment_type="video",
+            file_path=object_key,
+            extra_data={"duration": round(total_duration, 1), "chapter_id": chapter_id}
+        )
+        await attachment_service.create(user_id, new_attach, commit=True)
+
+      await task_manager.update_progress(task_id, 100, "视频导读生成完成！")
+      self.logger.info(f"[视频生成] 完成! 时长 {total_duration:.1f}s, 路径 {object_key}")
+
+      # 清理本地临时文件
+      try:
+        import shutil
+        shutil.rmtree(f"{var_prefix}video/{book_id}/{chapter_id}", ignore_errors=True)
+      except Exception:
+        pass
+
+    except Exception as e:
+      self.logger.error(f"[视频生成] 失败: {e}", exc_info=True)
+      try:
+        video_model.process_status = "9"
+        video_model.remark = str(e)[:500]
+        await self.update(user_id, video_model, commit=True)
+      except Exception:
+        pass
+      await task_manager.update_progress(task_id, 100, f"失败: {str(e)[:100]}")
 
 
 PaymentDispatcher.register_service("book_purchase", TriHeartBookUserService)

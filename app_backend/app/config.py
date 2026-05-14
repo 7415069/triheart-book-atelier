@@ -77,5 +77,22 @@ class ThbaAppSettings(AppSettings, PaySettings):
   CDN_OSS_ENDPOINT: str = "minio-cdn.brtech.top"
   CDN_OSS_SECRET_KEY: str = ""
 
+  # --- 视频导读 AI 配置（多模态 LLM，通过 LiteLLM 统一调用）---
+  # 模型标识使用 LiteLLM 格式: provider/model_name
+  # 例如: gemini/gemini-2.5-flash, openai/gpt-4o, anthropic/claude-sonnet-4-6
+  VIDEO_AI_API_KEY: str = ""  # API Key（LiteLLM 也会自动读取环境变量如 GEMINI_API_KEY）
+  VIDEO_AI_BASE_URL: str = ""  # 自定义 Base URL（可选，留空则使用 LiteLLM 默认官方地址）
+  VIDEO_AI_MODEL_NAME: str = "gemini/gemini-2.5-flash"  # LiteLLM 模型标识
+  VIDEO_AI_ENABLE: bool = True
+  VIDEO_AI_TEMPERATURE: float = 0.3
+  VIDEO_AI_MAX_TOKENS: int = 8192
+
+  # --- TTS 配音配置 ---
+  VIDEO_TTS_VOICE: str = "zh-CN-YunjianNeural"  # 讲书人风格；可选: zh-CN-YunxiNeural(男声), zh-CN-XiaoxiaoNeural(女声)
+
+  # --- 视频输出配置 ---
+  VIDEO_OUTPUT_WIDTH: int = 1080
+  VIDEO_OUTPUT_HEIGHT: int = 1920  # 默认 9:16 竖屏
+
 
 thba_app_settings = ThbaAppSettings()

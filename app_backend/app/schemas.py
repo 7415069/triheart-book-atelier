@@ -7,7 +7,7 @@ from brtech_backend.core.schemas import StringPKeyRecurseQuery, StringPKeyQuery
 from pydantic import Field
 from sqlalchemy import Select, asc, desc, or_
 
-from .models import TriHeartBookModel, TriHeartChapterModel, TriHeartPageModel, TriHeartChapterPageModel, TriHeartBookNoteModel, TriHeartBookUserModel, TriHeartTermModel, TriHeartPageTermModel, TriHeartPageAttachmentModel
+from .models import TriHeartBookModel, TriHeartChapterModel, TriHeartPageModel, TriHeartChapterPageModel, TriHeartBookNoteModel, TriHeartBookUserModel, TriHeartTermModel, TriHeartPageTermModel, TriHeartPageAttachmentModel, TriHeartChapterVideoModel
 
 
 class TriHeartBookQuery(StringPKeyQuery[TriHeartBookModel]):
@@ -132,7 +132,7 @@ class TriHeartPageTermQuery(StringPKeyQuery[TriHeartPageTermModel]):
 
   image_mode: Annotated[
     str | None,
-    FieldOption(show=False)
+    FieldOption(show=False, search_show=False)
   ] = Field(default=None, description="图片模式")
 
   def __init__(self, /, **data: Any) -> None:
@@ -154,4 +154,8 @@ class TriHeartPageTermQuery(StringPKeyQuery[TriHeartPageTermModel]):
 
 
 class TriHeartPageAttachmentQuery(StringPKeyQuery[TriHeartPageAttachmentModel]):
+  pass
+
+
+class TriHeartChapterVideoQuery(StringPKeyQuery[TriHeartChapterVideoModel]):
   pass

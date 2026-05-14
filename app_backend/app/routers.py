@@ -11,11 +11,13 @@ from fastapi import Path, Depends, Body
 from pydantic import BaseModel, Field, ConfigDict
 from pydantic.alias_generators import to_camel
 
-from .crud import TriHeartBookCrud, TriHeartChapterCrud, TriHeartPageCrud, TriHeartChapterPageCrud, TriHeartBookUserCrud, TriHeartBookNoteCrud, TriHeartTermCrud, TriHeartPageTermCrud, TriHeartPageAttachmentCrud
-from .models import TriHeartBookModel, TriHeartChapterModel, TriHeartPageModel, TriHeartChapterPageModel, TriHeartBookUserModel, TriHeartBookNoteModel, TriHeartTermModel, TriHeartPageTermModel, TriHeartPageAttachmentModel
-from .schemas import TriHeartBookQuery, TriHeartChapterQuery, TriHeartPageQuery, TriHeartChapterPageQuery, TriHeartBookUserQuery, TriHeartBookNoteQuery, TriHeartTermQuery, TriHeartPageTermQuery, TriHeartPageAttachmentQuery
-from .services import TriHeartBookService, TriHeartChapterService, TriHeartPageService, TriHeartChapterPageService, TriHeartBookUserService, TriHeartBookNoteService, TriHeartTermService, TriHeartPageTermService, \
-  TriHeartPageAttachmentService
+from .crud import TriHeartBookCrud, TriHeartChapterCrud, TriHeartPageCrud, TriHeartChapterPageCrud, TriHeartBookUserCrud, TriHeartBookNoteCrud, TriHeartTermCrud, TriHeartPageTermCrud, TriHeartPageAttachmentCrud, TriHeartChapterVideoCrud
+from .models import TriHeartBookModel, TriHeartChapterModel, TriHeartPageModel, TriHeartChapterPageModel, TriHeartBookUserModel, TriHeartBookNoteModel, TriHeartTermModel, TriHeartPageTermModel, TriHeartPageAttachmentModel, TriHeartChapterVideoModel
+from .schemas import TriHeartBookQuery, TriHeartChapterQuery, TriHeartPageQuery, TriHeartChapterPageQuery, TriHeartBookUserQuery, TriHeartBookNoteQuery, TriHeartTermQuery, TriHeartPageTermQuery, TriHeartPageAttachmentQuery, TriHeartChapterVideoQuery
+from .services import (
+  TriHeartBookService, TriHeartChapterService, TriHeartPageService, TriHeartChapterPageService, TriHeartBookUserService, TriHeartBookNoteService,
+  TriHeartTermService, TriHeartPageTermService, TriHeartPageAttachmentService, TriHeartChapterVideoService
+)
 
 
 class WebpUrlRequest(BaseModel):
@@ -193,7 +195,52 @@ class TriHeartPageAttachmentRouter(StringPKeyRouter[TriHeartPageAttachmentModel,
   pass
 
 
+@RouterMeta(prefix="/chapterVideo", tags=["三心书坊 - 章节视频管理"], module_name="章节视频管理")
+class TriHeartChapterVideoRouter(StringPKeyWithDictionaryRouter[TriHeartChapterVideoModel, TriHeartChapterVideoCrud, TriHeartChapterVideoQuery, TriHeartChapterVideoService]):
+
+  def _register_routes(self):
+    super()._register_routes()
+
+    @self.router.post(
+        "/generate/{modelId}", summary="生成章节视频",
+        openapi_extra=self._operation("生成章节视频", OperateType.OTHER, True)
+    )
+    async def generate_video(modelId: str = Path(..., description="章节ID"), auth_context: AuthContext = Depends(self.user_dependency)):
+      from .services import run_video_generation_task
+      task_id = await task_manager.create_task(user_id=auth_context.user_id, task_type="video_generation", task_name="生成章节视频导读", ref_id=modelId, ref_type="chapter")
+      asyncio.create_task(task_manager.run_task(task_id, run_video_generation_task(auth_context.user_id, modelId, task_id)))
+      return RestResponse.success(data={"taskId": task_id}, message="视频导读生成任务已启动")
+
+    @self.router.post(
+        "/signUrl/{model_id}", summary="获取视频签名URL",
+        openapi_extra=self._operation("获取视频签名URL", OperateType.QUERY)
+    )
+    async def get_video_sign_url(
+        model_id: str = Path(..., description="视频记录ID"),
+        service: TriHeartChapterVideoService = Depends(self._get_service),
+        auth_context: AuthContext = Depends(self.optional_user_dependency)
+    ):
+      sign_url = await service.get_video_sign_url(auth_context.user_id, model_id)
+      return RestResponse.success(data=sign_url)
+
+    @self.router.post(
+        "/byChapter/{chapter_id}", summary="根据章节查询视频",
+        openapi_extra=self._operation("根据章节查询视频", OperateType.QUERY)
+    )
+    async def get_video_by_chapter(
+        chapter_id: str = Path(..., description="章节ID"),
+        service: TriHeartChapterVideoService = Depends(self._get_service),
+        auth_context: AuthContext = Depends(self.optional_user_dependency)
+    ):
+      video = await service.get_by_chapter_id(auth_context.user_id, chapter_id)
+      if video and video.process_status == "2":
+        sign_url = await service.get_video_sign_url(auth_context.user_id, video.model_id)
+        return RestResponse.success(data={"video": video, "signUrl": sign_url})
+      return RestResponse.success(data=None)
+
+
 thba_router_classes = [
   TriHeartBookRouter, TriHeartChapterRouter, TriHeartPageRouter, TriHeartChapterPageRouter, TriHeartBookUserRouter,
-  TriHeartBookNoteRouter, TriHeartTermRouter, TriHeartPageTermRouter, TriHeartPageAttachmentRouter
+  TriHeartBookNoteRouter, TriHeartTermRouter, TriHeartPageTermRouter, TriHeartPageAttachmentRouter,
+  TriHeartChapterVideoRouter
 ]

@@ -5,12 +5,12 @@ from brtech_backend.core.annotations import FieldOption, UIComponent, DataOption
 from brtech_backend.core.enums import ActionType, PayloadLocation
 from brtech_backend.core.extra.sqlmodel_extra import ExtraSQLModelField
 from brtech_backend.core.models import StringPKeyModel, StringPKeyRecurseModel, HDatetime
-from sqlalchemy import String, Integer, Text, UniqueConstraint, DateTime, JSON
+from sqlalchemy import String, Integer, Text, UniqueConstraint, DateTime, Float, JSON
 from sqlmodel import Field as SQLModelField
 
 
 @ui_config(
-    module_name="书籍管理", action_column_width=320,
+    module_name="书籍管理", action_column_width=360,
     layout=[
       "book_title", "book_subtitle", "book_cover", "book_author", "book_pdf_path", "book_translator", "book_page_count", "toc_begin_page", "toc_end_page", "body_page_offset",
       "guest_preview_limit", "user_preview_limit", "owner_id", "book_isbn", "book_category", "book_status", "book_list_price", "book_sale_price", "owner_name",
@@ -42,11 +42,15 @@ from sqlmodel import Field as SQLModelField
           confirm_msg="确定要重新解析该书籍吗？这将覆盖现有数据。"
       ),
       Action(
+          code="boot_video_manage", label="视频管理", icon="VideoCameraFilled",
+          type=ActionType.ROUTER, router_path="/business/chapterVideo", query_params={"bookId": "modelId"}
+      ),
+      Action(
           code="boot_term_manage", label="术语管理", icon="HelpFilled",
           type=ActionType.ROUTER, router_path="/business/term", query_params={"bookId": "modelId"}
       ),
       Action(
-          code="boot_term_scan", label="坐标扫描", icon="Aim", type=ActionType.API,
+          code="boot_term_scan", label="术语坐标扫描", icon="Aim", type=ActionType.API,
           api_url="/book/scanCoords/{modelId}", method="POST", payload_location=PayloadLocation.PATH,
           confirm_msg="确定要根据现有术语表，重新扫描全书的坐标吗？"
       ),
@@ -281,7 +285,7 @@ class TriHeartBookModel(StringPKeyModel, table=True):
 
 
 @ui_config(
-    module_name="章节管理", search_span=8, tree_table=True, load_uri="/query/all", load_lazy=True, action_column_width=200,
+    module_name="章节管理", search_span=8, tree_table=True, load_uri="/query/all", load_lazy=True, action_column_width=240,
     layout=[
       "book_id",
       FieldOption(
@@ -304,6 +308,11 @@ class TriHeartBookModel(StringPKeyModel, table=True):
           api_url="/book/extract/{bookId}", method="POST", payload_location=PayloadLocation.BODY,
           context_map={"fromPageNo": "fromPageNo", "toPageNo": "toPageNo"},
           confirm_msg="确定要对章节 '{chapter_title}' (P{fromPageNo}-P{toPageNo}) 执行 AI 术语提取吗？"
+      ),
+      Action(
+          code="boot_video_generation", label="生成导读视频", icon="VideoCameraFilled", type=ActionType.API,
+          api_url="/chapterVideo/generate/{modelId}", method="POST", payload_location=PayloadLocation.PATH,
+          confirm_msg="确定要为章节 '{chapter_title}' (P{fromPageNo}-P{toPageNo}) 生成视频导读吗？\n\n这将使用 AI 分析书页内容并自动生成配音视频，耗时约 2-5 分钟。"
       )
     ]
 )
@@ -789,7 +798,7 @@ class TriHeartPageTermModel(StringPKeyModel, table=True):
 
 
 @ui_config(
-    module_name="页面附件管理", action_column_width=150,
+    module_name="页面附件管理", action_column_width=160,
     layout=[
       "book_id", "page_no", "display_name", "attachment_type", "file_path", "extra_data",
       FieldOption(prop="create_person", table_show=False, add_show=False, edit_show=False, search_show=False, detail_show=False, span=6),
@@ -880,3 +889,122 @@ class TriHeartPageAttachmentModel(StringPKeyModel, table=True):
       sa_type=JSON, nullable=True,
       sa_column_kwargs={"name": "extra_data", "comment": "额外数据 (JSON)"}
   )
+
+
+@ui_config(
+    module_name="章节视频管理", action_column_width=160,
+    layout=[
+      "book_id", "chapter_id", "status", "duration", "voice_type",
+      FieldOption(prop="video_path", table_show=False, add_show=False, edit_show=False, span=24),
+      FieldOption(prop="script_json", table_show=False, add_show=False, edit_show=False, span=24),
+      FieldOption(prop="create_person", table_show=False, add_show=False, edit_show=False, search_show=False, detail_show=False),
+      FieldOption(prop="create_timestamp", table_show=False, add_show=False, edit_show=False, search_show=False),
+      FieldOption(prop="update_person", table_show=False, add_show=False, edit_show=False, search_show=False, detail_show=False),
+      FieldOption(prop="update_timestamp", table_show=False, add_show=False, edit_show=False, search_show=False),
+      FieldOption(prop="remark", table_show=False, add_show=False, edit_show=False, search_show=False)
+    ],
+    page_actions=[],
+    row_actions=[
+      Action(
+          code="video_preview", label="预览播放", icon="VideoPlay",
+          type=ActionType.LINK, target="_blank",
+          router_path="/{CONTEXT_PATH}/{UI_PATH}/reader/{bookId}/1?videoId={modelId}", include_router_prefix=False
+      ),
+      StandardDetail(dialog_width="800px")
+    ]
+)
+class TriHeartChapterVideoModel(StringPKeyModel, table=True):
+  __tablename__ = "triheart_chapter_video"
+  __table_args__ = (
+    UniqueConstraint("chapter_id", name="triheart_chapter_video_unique_1"),
+  )
+
+  book_id: Annotated[
+    str | None,
+    FieldOption(
+        table_show=True, add_show=True, edit_show=True, detail_show=True, search_show=True, required=True, span=12, search_span=10,
+        component=UIComponent.SELECT,
+        data_option=DataOption(model_cls=TriHeartBookModel, method="POST", path="/query/all", label_field="book_title", value_field="model_id")
+    ),
+    EnableQuery(query_type=QueryType.EQ)
+  ] = SQLModelField(
+      description="所属书籍",
+      sa_type=String, max_length=36, nullable=False,
+      sa_column_kwargs={"name": "book_id", "comment": "所属书籍"}
+  )
+
+  chapter_id: Annotated[
+    str | None,
+    FieldOption(
+        table_show=True, add_show=True, edit_show=True, detail_show=True, search_show=True, required=True, search_required=False, span=12, search_span=10,
+        component=UIComponent.TREE_SELECT,
+        data_option=DataOption(model_cls=TriHeartChapterModel, cascade_field="book_id", lazy_load=False, method="POST", path="/query/tree", label_field="chapter_title", value_field="model_id")
+    ),
+    EnableQuery(query_type=QueryType.EQ)
+  ] = SQLModelField(
+      description="所属章节",
+      sa_type=String, max_length=36, nullable=False,
+      sa_column_kwargs={"name": "chapter_id", "comment": "所属章节"}
+  )
+
+  video_path: Annotated[
+    str | None,
+    FieldOption(table_show=False, add_show=False, edit_show=False, detail_show=True, search_show=False)
+  ] = SQLModelField(
+      description="视频 OSS 路径",
+      sa_type=String, max_length=256, nullable=True,
+      sa_column_kwargs={"name": "video_path", "comment": "视频 OSS 路径"}
+  )
+
+  script_json: Annotated[
+    str | None,
+    FieldOption(table_show=False, add_show=False, edit_show=False, detail_show=True, search_show=False, span=24, component=UIComponent.JSON_EDITOR, component_props={"rows": 10})
+  ] = SQLModelField(
+      description="AI 生成的视频脚本 JSON",
+      sa_type=Text, nullable=True,
+      sa_column_kwargs={"name": "script_json", "comment": "AI 生成的视频脚本 JSON"}
+  )
+
+  process_status: Annotated[
+    str | None,
+    Dictionary(store_type=StoreType.DICTIONARY_VALUE, dictionary_type="process_status", display_field_name="process_status_display"),
+    FieldOption(table_show=True, add_show=False, edit_show=False, detail_show=True, search_show=True, span=6, search_span=4, component=UIComponent.SELECT),
+    EnableQuery(query_type=QueryType.EQ)
+  ] = SQLModelField(
+      default="0", description="处理状态",
+      sa_type=String, max_length=36, nullable=False,
+      sa_column_kwargs={"name": "process_status", "comment": "处理状态"}
+  )
+
+  process_status_display: Annotated[
+    str | None,
+    FieldOption(table_show=False, add_show=False, edit_show=False, detail_show=False, search_show=False)
+  ] = ExtraSQLModelField(description="处理状态显示", sa_column_exclude=True)
+
+  duration: Annotated[
+    float | None,
+    FieldOption(table_show=True, add_show=False, edit_show=False, detail_show=True, search_show=False, span=6, component=UIComponent.INPUT_NUMBER)
+  ] = SQLModelField(
+      description="视频时长（秒）",
+      sa_type=Float, nullable=True,
+      sa_column_kwargs={"name": "duration", "comment": "视频时长（秒）"}
+  )
+
+  voice_type: Annotated[
+    str | None,
+    FieldOption(table_show=True, add_show=False, edit_show=False, detail_show=True, search_show=False, span=6, component=UIComponent.INPUT)
+  ] = SQLModelField(
+      description="TTS 音色",
+      sa_type=String, max_length=64, nullable=True,
+      sa_column_kwargs={"name": "voice_type", "comment": "TTS 音色"}
+  )
+
+  # chapter_title: Annotated[
+  #   str | None,
+  #   FieldOption(table_show=True, add_show=False, edit_show=False, detail_show=False, search_show=False)
+  # ] = ExtraSQLModelField(description="章节标题", sa_column_exclude=True)
+  #
+  # book_title: Annotated[
+  #   str | None,
+  #   FieldOption(table_show=True, add_show=False, edit_show=False, detail_show=False, search_show=False)
+  # ] = ExtraSQLModelField(description="书籍标题", sa_column_exclude=True)

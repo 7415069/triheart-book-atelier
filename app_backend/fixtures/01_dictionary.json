@@ -74,12 +74,12 @@
       ]
     },
     {
-      "model_id": "process_status", "dic_type": "process_status", "dic_value": "process_status-g", "dic_label": "解析状态", "dic_sort": 2080,
+      "model_id": "process_status", "dic_type": "process_status", "dic_value": "process_status-g", "dic_label": "执行状态", "dic_sort": 2080,
       "children": [
-        {"model_id": "process_status$0", "dic_type": "process_status", "dic_value": "0", "dic_label": "等待解析", "dic_color": "#909399", "dic_sort": 2081},
-        {"model_id": "process_status$1", "dic_type": "process_status", "dic_value": "1", "dic_label": "正在解析", "dic_color": "#409EFF", "dic_sort": 2082},
-        {"model_id": "process_status$2", "dic_type": "process_status", "dic_value": "2", "dic_label": "解析完成", "dic_color": "#67C23A", "dic_sort": 2083},
-        {"model_id": "process_status$9", "dic_type": "process_status", "dic_value": "9", "dic_label": "解析失败", "dic_color": "#F56C6C", "dic_sort": 2084}
+        {"model_id": "process_status$0", "dic_type": "process_status", "dic_value": "0", "dic_label": "等待执行", "dic_color": "#909399", "dic_sort": 2081},
+        {"model_id": "process_status$1", "dic_type": "process_status", "dic_value": "1", "dic_label": "正在执行", "dic_color": "#409EFF", "dic_sort": 2082},
+        {"model_id": "process_status$2", "dic_type": "process_status", "dic_value": "2", "dic_label": "执行完成", "dic_color": "#67C23A", "dic_sort": 2083},
+        {"model_id": "process_status$9", "dic_type": "process_status", "dic_value": "9", "dic_label": "执行失败", "dic_color": "#F56C6C", "dic_sort": 2084}
       ]
     },
     {

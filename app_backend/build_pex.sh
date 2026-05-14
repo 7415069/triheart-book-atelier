@@ -79,7 +79,7 @@ CLEAN_SRC_DIR="${BUILD_DIR}/src_only"
 mkdir -p "${CLEAN_SRC_DIR}"
 
 echo ">>> 正在提取纯净业务代码..."
-cp -r app main.py "${CLEAN_SRC_DIR}/"
+cp -r .env app main.py "${CLEAN_SRC_DIR}/"
 
 echo ">>> 正在从隔离环境启动打包..."
 
@@ -93,7 +93,6 @@ pex \
   --python-shebang="/usr/bin/env python${PYTHON_VERSION}" \
   --interpreter-constraint="CPython==${PYTHON_VERSION}.*" \
   --resolver-version pip-2020-resolver \
-  --not-zip-safe \
   --no-compile \
   --strip-pex-env \
   --tmpdir="${BUILD_DIR}"
