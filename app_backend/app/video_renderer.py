@@ -3,6 +3,7 @@ import logging
 import os
 from typing import List, Dict
 
+import numpy as np
 from PIL import Image, ImageDraw
 from moviepy.editor import (
   ImageClip,
@@ -13,6 +14,11 @@ from moviepy.editor import (
   vfx,
 )
 from moviepy.video.VideoClip import VideoClip
+
+# 配置 moviepy 使用 ImageMagick v7
+from moviepy.config import change_settings
+
+change_settings({"IMAGEMAGICK_BINARY": "magick"})
 
 logger = logging.getLogger(__name__)
 
@@ -62,13 +68,24 @@ class VideoRenderer:
     渲染视频。
 
     :param scenes: AI 生成的场景脚本 [{scene_id, img_index, narration, focus_area, camera_action, duration}]
-    :param page_image_paths: {img_index: local_image_path} 书页本地图片路径（key 是序号，从1开始）
+    :param page_image_paths: {img_index: local_image_path} 书页本地图片路径（key 是连续序号，从1开始）
     :param scene_audio_paths: {scene_id: audio_path} 每个场景的配音文件路径
     :param output_path: 输出 MP4 路径
     :return: output_path
     """
     clips = []
     font = self.font_path
+
+    # 诊断日志：打印可用的图片序号
+    available_indices = sorted(page_image_paths.keys())
+    logger.info(f"可用图片序号: {available_indices}")
+    logger.info(f"总场景数: {len(scenes)}")
+
+    if not available_indices:
+      raise ValueError("没有可用的书页图片")
+
+    # 创建一个默认图片（当 AI 返回的索引找不到时使用）
+    fallback_img_index = available_indices[0]
 
     for i, scene in enumerate(scenes):
       img_index = scene.get("img_index", scene.get("page_no", 1))  # 兼容旧字段名
@@ -79,9 +96,18 @@ class VideoRenderer:
       scene_id = scene.get("scene_id", i + 1)
 
       img_path = page_image_paths.get(img_index)
+
+      # 如果指定的 img_index 不存在，尝试使用 fallback
       if not img_path or not os.path.exists(img_path):
-        logger.warning(f"场景 {scene_id}: 图片序号 {img_index} 缺失，跳过")
+        logger.warning(f"场景 {scene_id}: img_index={img_index} 不存在，尝试使用 fallback={fallback_img_index}")
+        img_index = fallback_img_index
+        img_path = page_image_paths.get(img_index)
+
+      if not img_path or not os.path.exists(img_path):
+        logger.error(f"场景 {scene_id}: 无法找到任何可用图片，跳过（可用序号: {available_indices}）")
         continue
+
+      logger.info(f"场景 {scene_id}: 使用图片 {img_index} ({img_path})")
 
       # 1. 创建带 Ken Burns 效果的书页剪辑
       page_clip = self._make_ken_burns_clip(
@@ -89,36 +115,47 @@ class VideoRenderer:
       )
 
       # 2. 添加焦点高亮叠加层
+      # _make_highlight_clip 返回的是带 mask 的 RGB clip，可直接与 RGB 底层合成
       highlight_clip = self._make_highlight_clip(focus_area, duration)
-      page_clip = CompositeVideoClip([page_clip, highlight_clip])
+      page_clip = CompositeVideoClip([page_clip, highlight_clip],
+                                     size=(self.output_width, self.output_height))
 
       # 3. 添加字幕
       if narration:
         subtitle_clip = self._make_subtitle_clip(narration, duration, font)
-        page_clip = CompositeVideoClip([page_clip, subtitle_clip])
+        page_clip = CompositeVideoClip([page_clip, subtitle_clip],
+                                       size=(self.output_width, self.output_height))
 
       # 4. 添加配音
       audio_path = scene_audio_paths.get(scene_id)
       if audio_path and os.path.exists(audio_path):
         try:
           audio_clip = AudioFileClip(audio_path)
-          if audio_clip.duration < duration:
-            # 如果音频比目标时长短，循环末尾静音
-            pass
-          # 裁剪/拉伸音频以匹配场景时长
-          audio_clip = audio_clip.with_duration(duration)
-          page_clip = page_clip.with_audio(audio_clip)
+          actual_audio_duration = audio_clip.duration
+
+          # 如果音频比目标时长短，在末尾补静音
+          if actual_audio_duration < duration:
+            from moviepy.editor import AudioClip
+            silence_duration = duration - actual_audio_duration
+            silence = AudioClip(lambda t: [0, 0], duration=silence_duration, fps=audio_clip.fps)
+            from moviepy.editor import concatenate_audioclips
+            audio_clip = concatenate_audioclips([audio_clip, silence])
+          elif actual_audio_duration > duration:
+            # 如果音频比目标时长长，裁剪到目标时长
+            audio_clip = audio_clip.subclip(0, duration)
+
+          page_clip = page_clip.set_audio(audio_clip)
         except Exception as e:
           logger.warning(f"场景 {scene_id}: 加载音频失败 {e}")
 
       # 5. 设置精确时长
-      page_clip = page_clip.with_duration(duration)
+      page_clip = page_clip.set_duration(duration)
 
       # 6. 添加淡入淡出转场（非首尾场景）
       if i > 0:
-        page_clip = page_clip.with_effects([vfx.CrossFadeIn(0.3)])
+        page_clip = page_clip.fx(vfx.fadein, 0.3)
       if i < len(scenes) - 1:
-        page_clip = page_clip.with_effects([vfx.CrossFadeOut(0.3)])
+        page_clip = page_clip.fx(vfx.fadeout, 0.3)
 
       clips.append(page_clip)
 
@@ -152,8 +189,6 @@ class VideoRenderer:
     根据运镜指令创建带 Ken Burns 效果的 ImageClip。
     focus_area: [x, y, w, h] 归一化坐标 (0~1)
     """
-    import numpy as np
-
     # 预加载图片为 numpy 数组，避免 transform 内 get_frame 的循环引用
     pil_img = Image.open(img_path).convert("RGB")
     img_array = np.array(pil_img)
@@ -164,16 +199,16 @@ class VideoRenderer:
     focus_cy = fy + fh / 2
 
     if action == "ZoomIn":
-      zoom_start, zoom_end = 1.0, 1.3
+      zoom_start, zoom_end = 1.0, 1.5
       pan_x = pan_y = 0
     elif action == "PanLeft":
-      zoom_start = zoom_end = 1.15
-      pan_x, pan_y = 0.15, 0
+      zoom_start = zoom_end = 1.2
+      pan_x, pan_y = 0.2, 0
     elif action == "PanRight":
-      zoom_start = zoom_end = 1.15
-      pan_x, pan_y = -0.15, 0
-    else:
-      zoom_start, zoom_end = 1.0, 1.05
+      zoom_start = zoom_end = 1.2
+      pan_x, pan_y = -0.2, 0
+    else:  # Steady
+      zoom_start, zoom_end = 1.0, 1.08
       pan_x = pan_y = 0
 
     out_w, out_h = self.output_width, self.output_height
@@ -205,46 +240,103 @@ class VideoRenderer:
     return VideoClip(make_frame=make_frame, duration=duration)
 
   def _make_highlight_clip(self, focus_area: List[float], duration: float) -> VideoClip:
-    """在焦点区域创建半透明高亮叠加层"""
-    import numpy as np
+    """
+    在焦点区域创建高亮效果：焦点外半透明暗化 + 醒目黄色边框。
 
+    修复说明：
+    MoviePy 的 CompositeVideoClip 只能将两个 RGB (H,W,3) 帧叠加。
+    原实现直接把 RGBA (H,W,4) 数组作为帧返回，导致 blit_on 试图把
+    shape (H,W,4) 广播到 shape (H,W,3) 时抛出 ValueError。
+
+    正确做法：VideoClip 只返回 RGB 帧，透明度信息通过独立的 mask clip
+    （灰度 0~1 浮点帧）传递，再用 clip.set_mask() 绑定。
+    MoviePy 合成时会自动用 mask 做 alpha blending，不再有通道数冲突。
+    """
     fx, fy, fw, fh = focus_area
     out_w, out_h = self.output_width, self.output_height
 
-    # 预先渲染好这一帧（高亮框是静态的，不随时间变化），避免每帧重复计算
-    overlay = np.zeros((out_h, out_w, 3), dtype=np.uint8)
-    x1 = int(fx * out_w)
-    y1 = int(fy * out_h)
-    x2 = int((fx + fw) * out_w)
-    y2 = int((fy + fh) * out_h)
-    pil_img = Image.fromarray(overlay, "RGB")
-    draw = ImageDraw.Draw(pil_img)
-    draw.rectangle([x1, y1, x2, y2], outline=(255, 230, 100), width=3)
-    static_frame = np.array(pil_img)
+    # ── 1. 准备 RGB 颜色帧（纯黑，颜色由 mask 决定可见度）──────────────
+    rgb_frame = np.zeros((out_h, out_w, 3), dtype=np.uint8)  # 全黑 RGB
 
-    def make_frame(t):
-      return static_frame
+    # ── 2. 准备 mask 帧（0.0 = 完全透明, 1.0 = 完全不透明）──────────────
+    # 焦点区域外：alpha ≈ 0.31（80/255），即半透明暗化
+    # 焦点区域内：alpha = 0（完全透明，让底层画面完全穿透）
+    mask_frame = np.full((out_h, out_w), 80 / 255.0, dtype=np.float32)
 
-    return VideoClip(make_frame=make_frame, duration=duration)
+    x1 = max(0, int(fx * out_w))
+    y1 = max(0, int(fy * out_h))
+    x2 = min(out_w, int((fx + fw) * out_w))
+    y2 = min(out_h, int((fy + fh) * out_h))
 
-  def _make_subtitle_clip(self, text: str, duration: float, font_path: str) -> TextClip:
-    """创建底部字幕"""
+    mask_frame[y1:y2, x1:x2] = 0.0  # 焦点区域完全透明
+
+    # ── 3. 在 mask 上画边框（边框本身是不透明的）────────────────────────
+    # 用 PIL 在 mask 上画矩形，外层发光 + 内层主边框
+    mask_pil = Image.fromarray((mask_frame * 255).astype(np.uint8), "L")
+    draw = ImageDraw.Draw(mask_pil)
+    draw.rectangle([x1 - 2, y1 - 2, x2 + 2, y2 + 2], outline=200, width=8)   # 外层发光
+    draw.rectangle([x1, y1, x2, y2], outline=255, width=5)                     # 内层主边框
+    mask_frame = np.array(mask_pil).astype(np.float32) / 255.0
+
+    # ── 4. 用黄色覆盖边框像素对应的 RGB 颜色帧 ──────────────────────────
+    # 创建一张黄色图层，仅在边框区域（mask 不为 0）生效
+    color_pil = Image.fromarray(rgb_frame)
+    color_draw = ImageDraw.Draw(color_pil)
+    color_draw.rectangle([x1 - 2, y1 - 2, x2 + 2, y2 + 2],
+                         outline=(255, 255, 150), width=8)   # 外层：浅黄
+    color_draw.rectangle([x1, y1, x2, y2],
+                         outline=(255, 220, 0), width=5)     # 内层：亮黄
+    rgb_frame = np.array(color_pil)
+
+    # ── 5. 构建 VideoClip（RGB）+ mask clip（灰度）────────────────────────
+    def make_frame(_t):
+      return rgb_frame
+
+    def make_mask_frame(_t):
+      return mask_frame
+
+    color_clip = VideoClip(make_frame=make_frame, duration=duration, ismask=False)
+
+    from moviepy.video.VideoClip import ImageClip as _ImageClip
+    mask_clip = VideoClip(make_frame=make_mask_frame, duration=duration, ismask=True)
+
+    return color_clip.set_mask(mask_clip)
+
+  def _make_subtitle_clip(self, text: str, duration: float, font_path: str) -> VideoClip:
+    """创建底部字幕，带半透明背景"""
     try:
-      return (
-        TextClip(
-            text=text,
-            font=font_path,
-            font_size=self.font_size,
-            color="white",
-            stroke_color="black",
-            stroke_width=1.5,
-            size=(int(self.output_width * 0.9), None),
-            method="caption",
-            horizontal_align="center",
-        )
-        .with_duration(duration)
-        .with_position(("center", int(self.output_height * 0.88)))
+      # 字幕文字
+      text_clip = TextClip(
+          txt=text,
+          font=font_path,
+          fontsize=int(self.font_size * 1.2),  # 字号放大 20%
+          color="white",
+          stroke_color="black",
+          stroke_width=2.5,  # 加粗描边
+          size=(int(self.output_width * 0.9), None),
+          method="caption",
+          align="center",
       )
+
+      # 创建半透明黑色背景
+      from moviepy.editor import ColorClip
+      text_w, text_h = text_clip.size
+      bg_clip = ColorClip(
+          size=(self.output_width, text_h + 40),  # 上下各留 20px 边距
+          color=(0, 0, 0)
+      ).set_opacity(0.7)
+
+      # 将文字叠加到背景上
+      text_clip = text_clip.set_position(("center", 20))
+      subtitle = CompositeVideoClip([bg_clip, text_clip], size=(self.output_width, text_h + 40))
+
+      # 设置位置和时长
+      subtitle = subtitle.set_position(("center", int(self.output_height * 0.85)))
+      subtitle = subtitle.set_duration(duration)
+      return subtitle
+
     except Exception as e:
       logger.warning(f"创建字幕失败: {e}")
-      return TextClip(text="", font_size=1).with_duration(duration)
+      # 返回一个透明的占位 clip
+      from moviepy.editor import ColorClip
+      return ColorClip(size=(1, 1), color=(0, 0, 0), duration=duration).set_opacity(0)
