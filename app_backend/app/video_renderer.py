@@ -5,8 +5,9 @@ from typing import List, Dict
 
 import numpy as np
 from PIL import Image, ImageDraw
+# 配置 moviepy 使用 ImageMagick v7
+from moviepy.config import change_settings
 from moviepy.editor import (
-  ImageClip,
   TextClip,
   CompositeVideoClip,
   AudioFileClip,
@@ -14,9 +15,6 @@ from moviepy.editor import (
   vfx,
 )
 from moviepy.video.VideoClip import VideoClip
-
-# 配置 moviepy 使用 ImageMagick v7
-from moviepy.config import change_settings
 
 change_settings({"IMAGEMAGICK_BINARY": "magick"})
 
@@ -114,19 +112,7 @@ class VideoRenderer:
           img_path, focus_area, camera_action, duration
       )
 
-      # 2. 添加焦点高亮叠加层
-      # _make_highlight_clip 返回的是带 mask 的 RGB clip，可直接与 RGB 底层合成
-      highlight_clip = self._make_highlight_clip(focus_area, duration)
-      page_clip = CompositeVideoClip([page_clip, highlight_clip],
-                                     size=(self.output_width, self.output_height))
-
-      # 3. 添加字幕
-      if narration:
-        subtitle_clip = self._make_subtitle_clip(narration, duration, font)
-        page_clip = CompositeVideoClip([page_clip, subtitle_clip],
-                                       size=(self.output_width, self.output_height))
-
-      # 4. 添加配音
+      # 3. 添加配音（字幕、高亮框均已去除，画面保持干净）
       audio_path = scene_audio_paths.get(scene_id)
       if audio_path and os.path.exists(audio_path):
         try:
@@ -186,10 +172,9 @@ class VideoRenderer:
 
   def _make_ken_burns_clip(self, img_path: str, focus_area: List[float], action: str, duration: float) -> VideoClip:
     """
-    根据运镜指令创建带 Ken Burns 效果的 ImageClip。
-    focus_area: [x, y, w, h] 归一化坐标 (0~1)
+    修改版：禁用了动态缩放，使画面保持静止
     """
-    # 预加载图片为 numpy 数组，避免 transform 内 get_frame 的循环引用
+    # 预加载图片
     pil_img = Image.open(img_path).convert("RGB")
     img_array = np.array(pil_img)
     img_h, img_w = img_array.shape[:2]
@@ -198,25 +183,33 @@ class VideoRenderer:
     focus_cx = fx + fw / 2
     focus_cy = fy + fh / 2
 
+    # --- 修改核心逻辑开始 ---
+    # 将所有动作的 zoom_start 和 zoom_end 设为一致，即可消除“慢慢放大”的动画
     if action == "ZoomIn":
-      zoom_start, zoom_end = 1.0, 1.5
+      # 如果 AI 要求放大，我们直接显示放大后的静态画面（例如固定 1.3 倍），不再有“过程”
+      zoom_start = zoom_end = 1.0
       pan_x = pan_y = 0
     elif action == "PanLeft":
-      zoom_start = zoom_end = 1.2
-      pan_x, pan_y = 0.2, 0
+      zoom_start = zoom_end = 1.0
+      pan_x, pan_y = 0.2, 0  # 这里 pan_x 也可以设为固定值，如果不想要平移的话设为 0
     elif action == "PanRight":
-      zoom_start = zoom_end = 1.2
+      zoom_start = zoom_end = 1.0
       pan_x, pan_y = -0.2, 0
-    else:  # Steady
-      zoom_start, zoom_end = 1.0, 1.08
+    else:  # Steady 模式
+      # 彻底静止：起始和结束缩放倍率都设为 1.0
+      zoom_start = zoom_end = 1.0
       pan_x = pan_y = 0
+    # --- 修改核心逻辑结束 ---
 
     out_w, out_h = self.output_width, self.output_height
     aspect = out_w / out_h
 
     def make_frame(t):
+      # 因为 zoom_start == zoom_end，这里的 progress 不再影响缩放倍率
       progress = t / duration if duration > 0 else 0
-      zoom = zoom_start + (zoom_end - zoom_start) * progress
+      zoom = zoom_start  # 变成固定值
+
+      # 如果你连左右平移也不想要，可以把 px, py 直接设为 0
       px = pan_x * progress
       py = pan_y * progress
 
@@ -274,8 +267,8 @@ class VideoRenderer:
     # 用 PIL 在 mask 上画矩形，外层发光 + 内层主边框
     mask_pil = Image.fromarray((mask_frame * 255).astype(np.uint8), "L")
     draw = ImageDraw.Draw(mask_pil)
-    draw.rectangle([x1 - 2, y1 - 2, x2 + 2, y2 + 2], outline=200, width=8)   # 外层发光
-    draw.rectangle([x1, y1, x2, y2], outline=255, width=5)                     # 内层主边框
+    draw.rectangle([x1 - 2, y1 - 2, x2 + 2, y2 + 2], outline=200, width=8)  # 外层发光
+    draw.rectangle([x1, y1, x2, y2], outline=255, width=5)  # 内层主边框
     mask_frame = np.array(mask_pil).astype(np.float32) / 255.0
 
     # ── 4. 用黄色覆盖边框像素对应的 RGB 颜色帧 ──────────────────────────
@@ -283,9 +276,9 @@ class VideoRenderer:
     color_pil = Image.fromarray(rgb_frame)
     color_draw = ImageDraw.Draw(color_pil)
     color_draw.rectangle([x1 - 2, y1 - 2, x2 + 2, y2 + 2],
-                         outline=(255, 255, 150), width=8)   # 外层：浅黄
+                         outline=(255, 255, 150), width=8)  # 外层：浅黄
     color_draw.rectangle([x1, y1, x2, y2],
-                         outline=(255, 220, 0), width=5)     # 内层：亮黄
+                         outline=(255, 220, 0), width=5)  # 内层：亮黄
     rgb_frame = np.array(color_pil)
 
     # ── 5. 构建 VideoClip（RGB）+ mask clip（灰度）────────────────────────
@@ -297,7 +290,6 @@ class VideoRenderer:
 
     color_clip = VideoClip(make_frame=make_frame, duration=duration, ismask=False)
 
-    from moviepy.video.VideoClip import ImageClip as _ImageClip
     mask_clip = VideoClip(make_frame=make_mask_frame, duration=duration, ismask=True)
 
     return color_clip.set_mask(mask_clip)

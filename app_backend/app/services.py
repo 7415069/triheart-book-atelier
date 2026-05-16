@@ -305,10 +305,22 @@ class TriHeartBookService(StringPKeyWithDictionaryService[TriHeartBookModel, Tri
 
   async def pre_update(self, user_id: str, old_model: TriHeartBookModel, new_model: TriHeartBookModel, update_fields: set[str]) -> None:
     await super().pre_update(user_id, old_model, new_model, update_fields)
-    if "book_pdf_path" in update_fields and not new_model.book_pdf_path:
-      new_model.book_pdf_path = old_model.book_pdf_path
-    if "book_pdf_path" in update_fields and new_model.book_pdf_path and new_model.book_pdf_path != old_model.book_pdf_path:
-      old_model.process_status = PROC_PENDING
+
+    if "book_pdf_path" in update_fields:
+      # 情况 A: 前端传了空字符串或 null
+      if not new_model.book_pdf_path:
+        # 【关键修改 1】直接从待更新字段中移除，这样就不会用空值覆盖数据库了
+        update_fields.discard("book_pdf_path")
+        # 还原一下 new_model 的值，防止后续逻辑误用
+        new_model.book_pdf_path = old_model.book_pdf_path
+
+      # 情况 B: 路径真的变了
+      elif new_model.book_pdf_path != old_model.book_pdf_path:
+        # 修改 new_model 的状态
+        new_model.process_status = PROC_PENDING
+        # 【关键修改 2】必须手动把 "process_status" 加入更新列表
+        # 否则底层 SQL 只会更新路径，而忽略状态的改变
+        update_fields.add("process_status")
 
   async def de_identification(self, user_id: str | None, models: Sequence[TriHeartBookModel]) -> None:
     await super().de_identification(user_id, models)
@@ -1053,17 +1065,14 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
       self.logger.info(f"[视频生成] 章节 '{chapter.chapter_title}' 共 {len(pages)} 页")
       await task_manager.update_progress(task_id, 5, f"已获取 {len(pages)} 张书页")
 
-      # 4. 下载书页图片
-      # page_local_paths key 是连续序号（1, 2, 3...），与发给 AI 的图片顺序严格对应
-      # page_images key 同样是连续序号，values 按序号顺序传给 LLM
-      # 注意：不能用真实页码（如 31/32/33）作 key，AI 不知道真实页码，它只认第几张图
-      page_images: dict[int, bytes] = {}   # {序号: 图片bytes}
-      page_local_paths: dict[int, str] = {}  # {序号: 本地路径}
+      # 4a. 下载书页 WebP 图片（渲染视频用，断点续跑）
+      # page_local_paths key 是连续序号（1, 2, 3...），与脚本中 img_index 严格对应
+      page_local_paths: dict[int, str] = {}
 
       local_dir = f"{var_prefix}video/{book_id}/{chapter_id}/images"
       os.makedirs(local_dir, exist_ok=True)
 
-      # 先把磁盘上已有的图片加载进来（断点续跑：跳过已下载的图片）
+      # 先把磁盘上已有的 webp 加载进来（跳过已下载的）
       seq = 0
       for page in pages:
         if not page.page_image_crop_path and not page.page_image_path:
@@ -1071,15 +1080,13 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
         seq += 1
         local_path = f"{local_dir}/{seq}.webp"
         if os.path.exists(local_path) and os.path.getsize(local_path) > 100:
-          with open(local_path, "rb") as f:
-            page_images[seq] = f.read()
           page_local_paths[seq] = local_path
           self.logger.info(f"书页序号 {seq}（第 {page.page_no} 页）: 使用本地缓存图片")
 
-      # 下载缺失的图片
+      # 下载缺失的 webp
       missing_pages = [(i + 1, page) for i, page in enumerate(
           [p for p in pages if p.page_image_crop_path or p.page_image_path]
-      ) if (i + 1) not in page_images]
+      ) if (i + 1) not in page_local_paths]
 
       if missing_pages:
         async with httpx.AsyncClient(timeout=60) as client:
@@ -1092,7 +1099,6 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
                 local_path = f"{local_dir}/{seq_no}.webp"
                 with open(local_path, "wb") as f:
                   f.write(resp.content)
-                page_images[seq_no] = resp.content
                 page_local_paths[seq_no] = local_path
             except Exception as e:
               self.logger.warning(f"下载书页序号 {seq_no}（第 {page.page_no} 页）失败: {e}")
@@ -1100,11 +1106,55 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
             if (idx + 1) % 5 == 0:
               await task_manager.update_progress(task_id, 5 + int(idx / len(missing_pages) * 10), f"下载书页: {idx + 1}/{len(missing_pages)}")
 
-      if not page_images:
+      if not page_local_paths:
         raise ValueError("无法获取任何书页图片")
 
-      # 按序号顺序排列，确保传给 AI 的图片顺序和 page_local_paths 一致
-      ordered_image_bytes = [page_images[k] for k in sorted(page_images.keys())]
+      # 4b. 生成章节 PDF 切片（送给 AI 用，比 webp 更忠实原文——矢量文字、无损）
+      # 优先从 OSS 下载原始 PDF，再在本地切片；若 PDF 已缓存则复用
+      pdf_slice_path = f"{var_prefix}video/{book_id}/{chapter_id}/chapter_slice.pdf"
+      pdf_bytes_for_ai: bytes | None = None
+
+      if os.path.exists(pdf_slice_path) and os.path.getsize(pdf_slice_path) > 100:
+        self.logger.info(f"[视频生成] 复用已有 PDF 切片: {pdf_slice_path}")
+        with open(pdf_slice_path, "rb") as f:
+          pdf_bytes_for_ai = f.read()
+      elif book and book.book_pdf_path:
+        # 下载原始 PDF（只下载一次，切片后缓存）
+        raw_pdf_local = f"{var_prefix}video/{book_id}/source.pdf"
+        if not (os.path.exists(raw_pdf_local) and os.path.getsize(raw_pdf_local) > 1024):
+          await task_manager.update_progress(task_id, 12, "下载原始 PDF...")
+          pdf_sign_url = await cdn_sign_url(self, user_id, book.book_pdf_path)
+          async with httpx.AsyncClient(timeout=300) as client:
+            resp = await client.get(pdf_sign_url)
+            if resp.status_code == 200:
+              os.makedirs(os.path.dirname(raw_pdf_local), exist_ok=True)
+              with open(raw_pdf_local, "wb") as f:
+                f.write(resp.content)
+              self.logger.info(f"[视频生成] 原始 PDF 已下载至 {raw_pdf_local}")
+            else:
+              self.logger.warning(f"[视频生成] PDF 下载失败 HTTP {resp.status_code}，将降级使用 WebP")
+
+        if os.path.exists(raw_pdf_local):
+          try:
+            await task_manager.update_progress(task_id, 13, f"切片 PDF 第 {chapter.from_page_no}~{chapter.to_page_no} 页...")
+            await run_in_threadpool(
+                PdfHelper.slice_pdf,
+                raw_pdf_local, chapter.from_page_no, chapter.to_page_no, pdf_slice_path
+            )
+            with open(pdf_slice_path, "rb") as f:
+              pdf_bytes_for_ai = f.read()
+          except Exception as e:
+            self.logger.warning(f"[视频生成] PDF 切片失败: {e}，将降级使用 WebP")
+
+      # 4c. 降级策略：若 PDF 切片不可用，回退到 WebP 图片列表
+      ordered_webp_bytes: list[bytes] = []
+      if pdf_bytes_for_ai is None:
+        self.logger.info("[视频生成] PDF 切片不可用，降级使用 WebP 图片列表送 AI")
+        for k in sorted(page_local_paths.keys()):
+          with open(page_local_paths[k], "rb") as f:
+            ordered_webp_bytes.append(f.read())
+
+      await task_manager.update_progress(task_id, 14, "书页素材准备完毕，准备调用 AI...")
 
       # 5. AI 生成脚本 — 如已有脚本则跳过（断点续跑，不重复花钱）
       script = None
@@ -1123,15 +1173,23 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
             base_url=thba_app_settings.VIDEO_AI_BASE_URL,
             model=thba_app_settings.VIDEO_AI_MODEL_NAME,
             temperature=thba_app_settings.VIDEO_AI_TEMPERATURE,
-            max_tokens=thba_app_settings.VIDEO_AI_MAX_TOKENS
         )
 
         for attempt in range(3):
-          script = await video_ai.generate_script(
-              page_images=ordered_image_bytes,
-              book_title=book_title,
-              chapter_title=chapter.chapter_title or ""
-          )
+          if pdf_bytes_for_ai is not None:
+            # 优先路径：PDF 切片送 AI（矢量原文，理解更准确）
+            script = await video_ai.generate_script_from_pdf(
+                pdf_bytes=pdf_bytes_for_ai,
+                book_title=book_title,
+                chapter_title=chapter.chapter_title or ""
+            )
+          else:
+            # 降级路径：WebP 图片列表送 AI
+            script = await video_ai.generate_script(
+                page_images=ordered_webp_bytes,
+                book_title=book_title,
+                chapter_title=chapter.chapter_title or ""
+            )
           if script:
             break
           self.logger.warning(f"LLM 脚本生成第 {attempt + 1} 次失败，重试...")

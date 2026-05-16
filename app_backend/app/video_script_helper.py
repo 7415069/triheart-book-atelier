@@ -19,13 +19,11 @@ class VideoScriptHelper:
       base_url: str = "",
       model: str = "gemini/gemini-2.5-flash",
       temperature: float = 0.3,
-      max_tokens: int = 8192
   ):
     self.api_key = api_key
     self.base_url = base_url
     self.model = model
     self.temperature = temperature
-    self.max_tokens = max_tokens
 
   async def generate_script(
       self,
@@ -73,7 +71,6 @@ class VideoScriptHelper:
       "model": self.model,
       "messages": messages,
       "temperature": self.temperature,
-      "max_tokens": self.max_tokens,
     }
     if self.api_key:
       kwargs["api_key"] = self.api_key
@@ -92,7 +89,7 @@ class VideoScriptHelper:
 
       if isinstance(script, list) and len(script) > 0:
         for idx, item in enumerate(script):
-          item.setdefault("scene_id", idx + 1)   # 兜底：按位置补全，保证连续
+          item.setdefault("scene_id", idx + 1)  # 兜底：按位置补全，保证连续
           item.setdefault("img_index", 1)
           item.setdefault("narration", "")
           item.setdefault("focus_area", [0.0, 0.0, 1.0, 1.0])
@@ -114,74 +111,152 @@ class VideoScriptHelper:
       logger.error(f"LLM API 调用失败: {e}")
       return []
 
+  async def generate_script_from_pdf(
+      self,
+      pdf_bytes: bytes,
+      book_title: str,
+      chapter_title: str,
+      context_hint: str = ""
+  ) -> List[Dict]:
+    """
+    将整个章节的 PDF 切片（bytes）作为文档直接送给多模态 LLM 生成视频脚本。
+
+    相较于逐页 WebP 图片，PDF 原生格式保留矢量文字、排版结构，
+    模型对文本内容的理解更精准，且只需一次 API 调用（省 token）。
+
+    :param pdf_bytes:     章节 PDF 切片的原始字节
+    :param book_title:    书名
+    :param chapter_title: 章节标题
+    :param context_hint:  额外上下文提示
+    :return: [{scene_id, img_index, narration, focus_area, camera_action, duration}]
+    """
+    if not pdf_bytes:
+      return []
+
+    system_prompt = self._build_system_prompt(book_title, chapter_title, context_hint)
+
+    # LiteLLM 的 document 格式（base64 编码的 PDF）
+    b64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+    user_content = [
+      {
+        "type": "text",
+        "text": (
+          "以下是本章节的完整 PDF 内容。PDF 中每一页对应一张书页图片，"
+          "页码从 1 开始连续编号，请在 img_index 字段中使用这个连续序号（而非书中印刷的页码）。"
+          "请根据 PDF 内容生成视频导读脚本。"
+        )
+      },
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": f"data:application/pdf;base64,{b64_pdf}",
+        }
+      }
+    ]
+
+    messages = [
+      {"role": "system", "content": system_prompt},
+      {"role": "user", "content": user_content}
+    ]
+
+    kwargs = {
+      "model": self.model,
+      "messages": messages,
+      "temperature": self.temperature,
+    }
+    if self.api_key:
+      kwargs["api_key"] = self.api_key
+    if self.base_url:
+      kwargs["api_base"] = self.base_url
+
+    try:
+      response = await litellm.acompletion(**kwargs)
+      raw = response.choices[0].message.content
+      if not raw:
+        logger.error("LLM (PDF模式) 返回空内容")
+        return []
+
+      clean = raw.replace("```json", "").replace("```", "").strip()
+      script = json.loads(clean)
+
+      if isinstance(script, list) and len(script) > 0:
+        for idx, item in enumerate(script):
+          item.setdefault("scene_id", idx + 1)
+          item.setdefault("img_index", 1)
+          item.setdefault("narration", "")
+          item.setdefault("focus_area", [0.0, 0.0, 1.0, 1.0])
+          item.setdefault("camera_action", "Steady")
+          item.setdefault("duration", 5.0)
+          if "page_no" in item and "img_index" not in item:
+            item["img_index"] = item.pop("page_no")
+        script.sort(key=lambda s: s.get("scene_id", 0))
+        return script
+
+      return []
+
+    except json.JSONDecodeError:
+      logger.error(f"LLM (PDF模式) 返回非 JSON: {raw[:500] if raw else ''}")
+      return []
+    except Exception as e:
+      logger.error(f"LLM (PDF模式) API 调用失败: {e}")
+      return []
+
   def _build_system_prompt(self, book_title: str, chapter_title: str, context_hint: str) -> str:
     hint = f"\n补充背景：{context_hint}" if context_hint else ""
     return textwrap.dedent(f"""
-      你是一位博览群书的知识导师，能够讲透任何学科领域的书籍内容。
-      当前任务：为《{book_title}》章节「{chapter_title}」制作一期深度视频导读，目标总时长 3~8 分钟。{hint}
+      你是一位博览群书的知识授课老师，能够讲透任何学科领域的书籍内容。
+      当前任务：为《{book_title}》章节「{chapter_title}」制作一期深度授课视频，目标总时长 3~8 分钟。{hint}
 
-      ## 第一步：判断书籍领域，确定讲解风格
-      
-      在生成脚本之前，先通读所有图片，判断本书属于哪个领域，并据此选择讲解方式：
-      
-      - **理论/人文/社科类**（哲学、历史、经济、心理、管理）：先抛问题引发思考，再解释观点，用现实类比帮助理解，最后说明实践意义
-      - **技术/理工类**（编程、数学、物理、工程）：先说"这个技术/概念解决什么问题"，再讲原理，再讲怎么用，配合图表/代码/公式的具体位置来讲解
-      - **医学/生命科学类**：先说临床意义或生活相关性，再讲机制原理，重点指向图表中的关键数据或解剖结构
-      - **工具/实操类**（设计、摄影、烹饪）：按操作步骤讲，强调每一步的要点和常见错误
-      
-      无论哪个领域，都要做到：
-      - **讲透原理，不只是转述**：说清楚"为什么是这样"，而不只是"书上说了什么"
-      - **有层次地展开**：一个知识点可以拆成"是什么→为什么→怎么用"三个场景分别讲
-      - **禁止注水**：不说"非常重要""意义深远"这类空话，每句话都要有实质内容
+      ## 核心原则：
+      内容第一：
+      - 脚本内容完全由 PDF 决定
+      - 针对 PDF 中提到的内容，需要展开来讲，但不能脱离 PDF 内容
+      - 场景顺序要严格按照 PDF 内容顺序
 
-      ## 第二步：规划场景，narration 和运镜强绑定
+      具体禁令：
+      - 禁止提及 PDF 中不存在的图表、对比、数据、结构
+      - 禁止套用任何固定模板（如"先看左边……再看右边……"），除非 PDF 里真的有这样的版式
+      - 禁止捏造或自创任何与 PDF 内容无关的信息，所有 narration、focus_area、camera_action 必须 100% 来源于 PDF 的实际内容
       
-      **场景的本质是"镜头停在哪里，同时说什么话"**，两者必须严格对应：
-      
-      - narration 讲到某个段落的核心句 → focus_area 精确框住那几行文字 → camera_action 用 ZoomIn 推进
-      - narration 在解释一张图表的左右对比 → focus_area 先框左列 → camera_action 用 PanRight 引导视线
-      - narration 在做整体总结或引发思考 → focus_area 可以是整页 → camera_action 用 Steady 留白沉淀
-      - narration 讲完一个要点，过渡到下一张图 → focus_area 框住本页结尾段落 → camera_action 用 Steady
-      
-      **判断一个场景是否合格的标准：** 如果把 narration 遮住，只看 focus_area 和 camera_action，能猜到大概在讲什么；如果把 focus_area 遮住，只听 narration，能知道镜头该落在哪里。两者必须互相印证。
+      讲解风格要求：
+      - 讲透原理，不只是转述：说清楚"为什么是这样"，而不只是"书上说了什么"
+      - 口语化，有节奏感，直接面向听众说话
+      - 禁止注水：不说"非常重要""意义深远"这类空话
 
-      ## 场景规划原则
-      
-      - 一张内容丰富的书页拆成 3~5 个场景，每个场景聚焦一个知识点或讲解角度
-      - 纯图表页：至少 2 个场景，第一个场景概述图表结论，第二个场景逐一讲解关键数据
-      - 过渡页/目录页/空白页：1 个场景，简短带过即可
-      - 全章总场景数 8~20 个，保证总时长 3~8 分钟
-      - 开头第一个场景：点明本章要解决的核心问题，制造听下去的理由
-      - 结尾最后一个场景：总结本章最重要的一个结论，或抛出一个引发思考的问题
+      ## 场景数量
+      - 按 PDF 实际页数和内容密度自然划分，不强制每页的场景数
+      - 全章总场景数控制在 8~20 个，保证总时长 3~8 分钟
+      - 第一个场景点明本章核心问题；每个子标题至少有一个场景；最后一个场景给出结论或留下思考
 
       ## 输入说明
-      用户会按顺序发送若干张书页图片，每张附有标注"[第 N 张图片]"，N 从 1 开始连续编号。
+      用户发送的是本章节完整的 PDF 文件。PDF 第 N 页对应 img_index = N（从 1 开始），
+      img_index 不能超过 PDF 的实际总页数。
 
       ## 输出字段规范
-
       ### scene_id（整数）
       从 1 开始的连续整数，严格递增，不能重复或跳号。
 
       ### img_index（整数）
-      该场景对应的书页图片序号（用户标注的 N）。同一张图可对应多个场景。
+      该场景对应的 PDF 页码（1-based）。同一页可对应多个场景。
 
       ### narration（字符串）
       旁白讲解词，直接面向听众朗读。口语化，有节奏感。长度 60~200 字。
+      必须完全基于该页 PDF 的真实内容，不得添加 PDF 中没有的信息。
 
       ### focus_area（数组）
-      与 narration 严格对应的画面焦点，格式 [x, y, w, h]，值为 0.0~1.0 的归一化比例：
-      - x：焦点左边界距图片左侧的比例
-      - y：焦点上边界距图片顶部的比例
-      - w：焦点宽度占图片总宽的比例
-      - h：焦点高度占图片总高的比例
-      示例：整页=[0.0,0.0,1.0,1.0]，上半页=[0.0,0.0,1.0,0.5]，右下角=[0.5,0.5,0.5,0.5]
+      narration 所讲内容在页面上的对应区域，格式 [x, y, w, h]，值为 0.0~1.0 的归一化比例：
+      - x：区域左边界距页面左侧的比例
+      - y：区域上边界距页面顶部的比例
+      - w：区域宽度占页面总宽的比例
+      - h：区域高度占页面总高的比例
+      不确定具体位置时使用整页：[0.0, 0.0, 1.0, 1.0]
 
       ### camera_action（字符串）
-      与 narration 和 focus_area 联动的运镜，只能取以下四个值之一：
-      - ZoomIn：推进聚焦，用于点出核心词句、公式、数据
-      - PanLeft：向左平移，用于从右向左引导视线
-      - PanRight：向右平移，用于从左向右引导视线，或引导读者看图表
-      - Steady：固定，用于整体概览、总结性陈述、或情绪沉淀
+      只能取以下四个值之一，根据页面实际版式和 narration 内容选择：
+      - Steady：默认值，用于整体概览或无明确局部焦点的场景
+      - ZoomIn：narration 在点出页面某个具体局部（词句、数字、图注）时使用
+      - PanLeft：页面本身是左右版式且视线需从右向左时使用
+      - PanRight：页面本身是左右版式且视线需从左向右时使用
 
       ### duration（浮点数）
       场景时长（秒）= narration 字数 ÷ 3.5，保留一位小数，最短 10.0 秒，最长 60.0 秒。
@@ -194,7 +269,7 @@ class VideoScriptHelper:
           "scene_id": 1,
           "img_index": 1,
           "narration": "这一章要解决的问题是……",
-          "focus_area": [0.0, 0.0, 1.0, 0.35],
+          "focus_area": [0.0, 0.0, 1.0, 1.0],
           "camera_action": "Steady",
           "duration": 18.0
         }},
@@ -202,7 +277,7 @@ class VideoScriptHelper:
           "scene_id": 2,
           "img_index": 1,
           "narration": "先看这个核心概念……",
-          "focus_area": [0.0, 0.35, 1.0, 0.3],
+          "focus_area": [0.0, 0.2, 1.0, 0.4],
           "camera_action": "ZoomIn",
           "duration": 24.0
         }}
