@@ -43,14 +43,12 @@ class VideoRenderer:
 
   def __init__(
       self,
-      output_width: int = 1080,
-      output_height: int = 1920,
       fps: int = 24,
       font_size: int = 36,
       font_path: str | None = None
   ):
-    self.output_width = output_width
-    self.output_height = output_height
+    self.output_width = 0
+    self.output_height = 0
     self.fps = fps
     self.font_path = font_path or _find_font()
     self.font_size = font_size
@@ -71,6 +69,25 @@ class VideoRenderer:
     :param output_path: 输出 MP4 路径
     :return: output_path
     """
+    first_img_path = page_image_paths.get(min(page_image_paths.keys()))
+    with Image.open(first_img_path) as img:
+      raw_w, raw_h = img.size
+
+    # 优化：如果图片太大（比如 4000px），进行等比例缩放，防止渲染爆内存
+    # 建议高度上限 1920 或 1080
+    max_h = 1080
+    scale = max_h / raw_h if raw_h > max_h else 1.0
+    self.output_width = int(raw_w * scale)
+    self.output_height = int(raw_h * scale)
+
+    # 保证宽高是偶数（H.264 编码要求）
+    if self.output_width % 2 != 0:
+      self.output_width -= 1
+    if self.output_height % 2 != 0:
+      self.output_height -= 1
+
+    logger.info(f"视频自适应尺寸确定为: {self.output_width}x{self.output_height}")
+
     clips = []
     font = self.font_path
 
@@ -108,9 +125,7 @@ class VideoRenderer:
       logger.info(f"场景 {scene_id}: 使用图片 {img_index} ({img_path})")
 
       # 1. 创建带 Ken Burns 效果的书页剪辑
-      page_clip = self._make_ken_burns_clip(
-          img_path, focus_area, camera_action, duration
-      )
+      page_clip = self._make_ken_burns_clip(img_path, duration)
 
       # 3. 添加配音（字幕、高亮框均已去除，画面保持干净）
       audio_path = scene_audio_paths.get(scene_id)
@@ -159,7 +174,7 @@ class VideoRenderer:
         codec="libx264",
         audio_codec="aac",
         preset="medium",
-        bitrate="2000k",
+        bitrate="1024k",
         threads=4
     )
 
@@ -170,26 +185,18 @@ class VideoRenderer:
 
     return output_path
 
-  def _make_ken_burns_clip(self, img_path: str, focus_area: List[float], action: str, duration: float) -> VideoClip:
+  def _make_ken_burns_clip(self, img_path: str, duration: float) -> VideoClip:
     """
-    终极简化版：无视所有坐标和动作，只做全景展示。
+    现在这个方法只需将图片缩放到确定的视频尺寸即可。
+    由于视频尺寸是根据图片定的，这里几乎是完美的 1:1。
     """
     pil_img = Image.open(img_path).convert("RGB")
-    img_w, img_h = pil_img.size
-    out_w, out_h = self.output_width, self.output_height
 
-    # 计算缩放：宽度填满 1080
-    scale = out_w / img_w
-    new_w = int(img_w * scale)
-    new_h = int(img_h * scale)
+    # 将图片缩放到 render 方法中确定的统一视频尺寸
+    # （防止后续页面和第一页尺寸微小不一致导致黑边）
+    resized_img = pil_img.resize((self.output_width, self.output_height), Image.LANCZOS)
+    frame_array = np.array(resized_img)
 
-    resized_img = pil_img.resize((new_w, new_h), Image.LANCZOS)
-    final_frame = Image.new("RGB", (out_w, out_h), (0, 0, 0))  # 黑色背景
-
-    paste_y = max(0, (out_h - new_h) // 2)  # 垂直居中
-    final_frame.paste(resized_img, (0, paste_y))
-
-    frame_array = np.array(final_frame)
     return VideoClip(make_frame=lambda t: frame_array, duration=duration)
 
   def _make_highlight_clip(self, focus_area: List[float], duration: float) -> VideoClip:
@@ -235,10 +242,8 @@ class VideoRenderer:
     # 创建一张黄色图层，仅在边框区域（mask 不为 0）生效
     color_pil = Image.fromarray(rgb_frame)
     color_draw = ImageDraw.Draw(color_pil)
-    color_draw.rectangle([x1 - 2, y1 - 2, x2 + 2, y2 + 2],
-                         outline=(255, 255, 150), width=8)  # 外层：浅黄
-    color_draw.rectangle([x1, y1, x2, y2],
-                         outline=(255, 220, 0), width=5)  # 内层：亮黄
+    color_draw.rectangle([x1 - 2, y1 - 2, x2 + 2, y2 + 2], outline=(255, 255, 150), width=8)  # 外层：浅黄
+    color_draw.rectangle([x1, y1, x2, y2], outline=(255, 220, 0), width=5)  # 内层：亮黄
     rgb_frame = np.array(color_pil)
 
     # ── 5. 构建 VideoClip（RGB）+ mask clip（灰度）────────────────────────

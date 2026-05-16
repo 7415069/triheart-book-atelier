@@ -1047,7 +1047,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
           chapter_id=chapter_id,
           book_id=book_id,
           process_status="1",
-          voice_type=thba_app_settings.VIDEO_TTS_VOICE
+          voice_type=str(thba_app_settings.VIDEO_TTS_SID)
       )
       await self.create(user_id, video_model, commit=True)
 
@@ -1259,10 +1259,11 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
         self.logger.info(f"跳过渲染，使用已有视频文件 {output_path}")
         await task_manager.update_progress(task_id, 80, "已有渲染结果，跳过渲染")
       else:
-        renderer = VideoRenderer(
-            output_width=thba_app_settings.VIDEO_OUTPUT_WIDTH,
-            output_height=thba_app_settings.VIDEO_OUTPUT_HEIGHT
-        )
+        # renderer = VideoRenderer(
+        #     output_width=thba_app_settings.VIDEO_OUTPUT_WIDTH,
+        #     output_height=thba_app_settings.VIDEO_OUTPUT_HEIGHT
+        # )
+        renderer = VideoRenderer()
         await run_in_threadpool(
             renderer.render,
             scenes=script,

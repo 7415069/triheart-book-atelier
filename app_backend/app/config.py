@@ -90,9 +90,9 @@ class ThbaAppSettings(AppSettings, PaySettings):
   # --- TTS 配音配置 ---
   VIDEO_TTS_VOICE: str = "zh-CN-YunjianNeural"  # 讲书人风格；可选: zh-CN-YunxiNeural(男声), zh-CN-XiaoxiaoNeural(女声)
 
-  # --- 视频输出配置 ---
-  VIDEO_OUTPUT_WIDTH: int = 1080
-  VIDEO_OUTPUT_HEIGHT: int = 1920  # 默认 9:16 竖屏
+  # # --- 视频输出配置 ---
+  # VIDEO_OUTPUT_WIDTH: int = 1080
+  # VIDEO_OUTPUT_HEIGHT: int = 1920  # 默认 9:16 竖屏
 
 
 thba_app_settings = ThbaAppSettings()
