@@ -104,10 +104,10 @@ async def cdn_sign_url(service: Service, user_id, raw_path: str) -> str:
       token_hash = md5(hash_str.encode('utf-8')).hexdigest()
       token = f"{timestamp}-{rand}-{uid}-{token_hash}"
       extra_params = {"md5": token}
-    raw_sign_url = await service.get_oss_download_sign_url(user_id, raw_path, "", extra_params)
+    raw_sign_url = await Service.get_oss_download_sign_url(service, user_id, raw_path, "", extra_params)
     return raw_sign_url.replace(thba_app_settings.OSS_ENDPOINT, thba_app_settings.CDN_OSS_ENDPOINT)
   else:
-    return await service.get_oss_download_sign_url(user_id, raw_path, "")
+    return await Service.get_oss_download_sign_url(service, user_id, raw_path, "")
 
 
 # =========================================================
@@ -979,7 +979,9 @@ class TriHeartPageTermService(StringPKeyWithDictionaryService[TriHeartPageTermMo
 
 
 class TriHeartPageAttachmentService(StringPKeyWithDictionaryService[TriHeartPageAttachmentModel, TriHeartPageAttachmentCrud, TriHeartPageAttachmentQuery]):
-  pass
+
+  async def get_oss_download_sign_url(self, user_id: str, object_key: str, save_name: str | None = None, extra_datas: dict[str, str | list[str] | tuple[str]] | None = None) -> str:
+    return await cdn_sign_url(self, user_id, object_key)
 
 
 class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapterVideoModel, TriHeartChapterVideoCrud, TriHeartChapterVideoQuery]):
