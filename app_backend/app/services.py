@@ -1031,7 +1031,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
 
     # 2. 检查是否已有视频记录（失败重试时保留已有 script_json 用于断点续跑）
     var_prefix = "var/"
-    output_dir = f"{var_prefix}video/{book_id}/{chapter_id}"
+    output_dir = f"{var_prefix}{book_id}/{chapter_id}"
     output_path = f"{output_dir}/output.mp4"
 
     exist = await self.get_by_chapter_id(user_id, chapter_id)
@@ -1069,7 +1069,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
       # page_local_paths key 是连续序号（1, 2, 3...），与脚本中 img_index 严格对应
       page_local_paths: dict[int, str] = {}
 
-      local_dir = f"{var_prefix}video/{book_id}/{chapter_id}/images"
+      local_dir = f"{var_prefix}{book_id}/{chapter_id}/webp"
       os.makedirs(local_dir, exist_ok=True)
 
       # 先把磁盘上已有的 webp 加载进来（跳过已下载的）
@@ -1111,7 +1111,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
 
       # 4b. 生成章节 PDF 切片（送给 AI 用，比 webp 更忠实原文——矢量文字、无损）
       # 优先从 OSS 下载原始 PDF，再在本地切片；若 PDF 已缓存则复用
-      pdf_slice_path = f"{var_prefix}video/{book_id}/{chapter_id}/chapter_slice.pdf"
+      pdf_slice_path = f"{var_prefix}{book_id}/{chapter_id}/chapter_slice.pdf"
       pdf_bytes_for_ai: bytes | None = None
 
       if os.path.exists(pdf_slice_path) and os.path.getsize(pdf_slice_path) > 100:
@@ -1120,7 +1120,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
           pdf_bytes_for_ai = f.read()
       elif book and book.book_pdf_path:
         # 下载原始 PDF（只下载一次，切片后缓存）
-        raw_pdf_local = f"{var_prefix}video/{book_id}/source.pdf"
+        raw_pdf_local = f"{var_prefix}{book.book_pdf_path}"
         if not (os.path.exists(raw_pdf_local) and os.path.getsize(raw_pdf_local) > 1024):
           await task_manager.update_progress(task_id, 12, "下载原始 PDF...")
           pdf_sign_url = await cdn_sign_url(self, user_id, book.book_pdf_path)
@@ -1208,7 +1208,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
       # 6. TTS 配音（本地已有音频文件则跳过，断点续跑）
       await task_manager.update_progress(task_id, 32, "正在生成配音...")
       tts = TtsHelper(voice=thba_app_settings.VIDEO_TTS_VOICE)
-      audio_dir = f"{var_prefix}video/{book_id}/{chapter_id}/audio"
+      audio_dir = f"{var_prefix}{book_id}/{chapter_id}/audio"
       os.makedirs(audio_dir, exist_ok=True)
 
       scene_audio_paths: dict[int, str] = {}
@@ -1230,7 +1230,8 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
           scene["duration"] = existing_dur
           self.logger.info(f"场景 {scene_id}: 跳过已存在的音频，时长 {existing_dur:.1f}s")
         else:
-          dur = await tts.synthesize(narration, audio_path, target_dur)
+          # dur = await tts.synthesize(narration, audio_path, target_dur)
+          dur = await tts.synthesize(narration, audio_path)
           if dur > 0:
             scene_audio_paths[scene_id] = audio_path
             total_duration += dur
@@ -1272,7 +1273,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
         await task_manager.update_progress(task_id, 80, "视频渲染完成，正在上传...")
 
       # 8. 上传视频至 OSS
-      object_key = f"video/{book_id}/{chapter_id}/chapter_video_{chapter_id}.mp4"
+      object_key = f"{book_id}/{chapter_id}/chapter_video_{chapter_id}.mp4"
       content_type = "video/mp4"
 
       upload_sign_url = await self.get_oss_upload_sign_url(user_id, object_key, content_type=content_type)

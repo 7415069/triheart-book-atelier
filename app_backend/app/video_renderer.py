@@ -172,65 +172,25 @@ class VideoRenderer:
 
   def _make_ken_burns_clip(self, img_path: str, focus_area: List[float], action: str, duration: float) -> VideoClip:
     """
-    修改版：禁用了动态缩放，使画面保持静止
+    终极简化版：无视所有坐标和动作，只做全景展示。
     """
-    # 预加载图片
     pil_img = Image.open(img_path).convert("RGB")
-    img_array = np.array(pil_img)
-    img_h, img_w = img_array.shape[:2]
-
-    fx, fy, fw, fh = focus_area
-    focus_cx = fx + fw / 2
-    focus_cy = fy + fh / 2
-
-    # --- 修改核心逻辑开始 ---
-    # 将所有动作的 zoom_start 和 zoom_end 设为一致，即可消除“慢慢放大”的动画
-    if action == "ZoomIn":
-      # 如果 AI 要求放大，我们直接显示放大后的静态画面（例如固定 1.3 倍），不再有“过程”
-      zoom_start = zoom_end = 1.0
-      pan_x = pan_y = 0
-    elif action == "PanLeft":
-      zoom_start = zoom_end = 1.0
-      pan_x, pan_y = 0.2, 0  # 这里 pan_x 也可以设为固定值，如果不想要平移的话设为 0
-    elif action == "PanRight":
-      zoom_start = zoom_end = 1.0
-      pan_x, pan_y = -0.2, 0
-    else:  # Steady 模式
-      # 彻底静止：起始和结束缩放倍率都设为 1.0
-      zoom_start = zoom_end = 1.0
-      pan_x = pan_y = 0
-    # --- 修改核心逻辑结束 ---
-
+    img_w, img_h = pil_img.size
     out_w, out_h = self.output_width, self.output_height
-    aspect = out_w / out_h
 
-    def make_frame(t):
-      # 因为 zoom_start == zoom_end，这里的 progress 不再影响缩放倍率
-      progress = t / duration if duration > 0 else 0
-      zoom = zoom_start  # 变成固定值
+    # 计算缩放：宽度填满 1080
+    scale = out_w / img_w
+    new_w = int(img_w * scale)
+    new_h = int(img_h * scale)
 
-      # 如果你连左右平移也不想要，可以把 px, py 直接设为 0
-      px = pan_x * progress
-      py = pan_y * progress
+    resized_img = pil_img.resize((new_w, new_h), Image.LANCZOS)
+    final_frame = Image.new("RGB", (out_w, out_h), (0, 0, 0))  # 黑色背景
 
-      crop_w = img_w / zoom
-      crop_h = crop_w / aspect
-      if crop_h * zoom > img_h:
-        crop_h = img_h / zoom
-        crop_w = crop_h * aspect
+    paste_y = max(0, (out_h - new_h) // 2)  # 垂直居中
+    final_frame.paste(resized_img, (0, paste_y))
 
-      cx = focus_cx + px
-      cy = focus_cy + py
-      x1 = max(0, int(cx * img_w - crop_w / 2))
-      y1 = max(0, int(cy * img_h - crop_h / 2))
-      x2 = min(img_w, x1 + int(crop_w))
-      y2 = min(img_h, y1 + int(crop_h))
-
-      cropped = Image.fromarray(img_array).crop((x1, y1, x2, y2))
-      resized = cropped.resize((out_w, out_h), Image.LANCZOS)
-      return np.array(resized)
-
-    return VideoClip(make_frame=make_frame, duration=duration)
+    frame_array = np.array(final_frame)
+    return VideoClip(make_frame=lambda t: frame_array, duration=duration)
 
   def _make_highlight_clip(self, focus_area: List[float], duration: float) -> VideoClip:
     """
