@@ -1047,7 +1047,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
           chapter_id=chapter_id,
           book_id=book_id,
           process_status="1",
-          voice_type=str(thba_app_settings.VIDEO_TTS_SID)
+          voice_type=thba_app_settings.VIDEO_TTS_VOICE
       )
       await self.create(user_id, video_model, commit=True)
 
@@ -1218,13 +1218,14 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
       for scene in script:
         scene_id = scene.get("scene_id", 0)
         narration = scene.get("narration", "")
-        target_dur = scene.get("duration", 5.0)
+        # target_dur = scene.get("duration", 5.0)
 
         audio_path = f"{audio_dir}/scene_{scene_id}.mp3"
 
         if os.path.exists(audio_path) and os.path.getsize(audio_path) > 100:
           # 音频已存在，直接复用。audio_duration 是上轮 TTS 实测时长，比 AI 估算的更准确
-          existing_dur = scene.get("audio_duration", target_dur)
+          # existing_dur = scene.get("audio_duration", target_dur)
+          existing_dur = scene.get("audio_duration", scene.get("duration", 5.0))
           scene_audio_paths[scene_id] = audio_path
           total_duration += existing_dur
           scene["duration"] = existing_dur
@@ -1235,8 +1236,8 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
           if dur > 0:
             scene_audio_paths[scene_id] = audio_path
             total_duration += dur
-            scene["duration"] = dur
-            scene["audio_duration"] = dur  # 记录实测时长
+            scene["duration"] = dur  # 以实际音频长度更新场景长度
+            scene["audio_duration"] = dur
             tts_newly_generated = True
 
         progress = 32 + int(len(scene_audio_paths) / len(script) * 18)

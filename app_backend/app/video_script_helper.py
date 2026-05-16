@@ -236,7 +236,7 @@ class VideoScriptHelper:
 
       ## 输出字段规范
       ### scene_id（整数）
-      从 1 开始的连续整数，严格递增。
+      从 1 开始的连续整数。
 
       ### img_index（整数）
       该场景对应的 PDF 页码（1-based）。
@@ -245,13 +245,13 @@ class VideoScriptHelper:
       旁白讲解词。直接面向听众朗读，口语化，长度 60~200 字。
 
       ### focus_area（数组）
-      【硬性规定】必须统一固定为 [0.0, 0.0, 1.0, 1.0]。严禁根据内容去计算局部坐标。
+      【必须】统一固定为 [0.0, 0.0, 1.0, 1.0]。
 
       ### camera_action（字符串）
-      【硬性规定】必须统一固定为 "Steady"。严禁使用 ZoomIn、PanLeft 或 PanRight。
+      【必须】统一固定为 "Steady"。
 
       ### duration（浮点数）
-      场景时长（秒）= narration 字数 ÷ 3.5。最短 10.0 秒。
+      场景时长 = narration 字数 ÷ 3.5。
 
       ## 输出格式
       只返回纯 JSON 数组，不加任何 markdown 标记、注释或前后说明文字。

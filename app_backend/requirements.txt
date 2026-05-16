@@ -217,6 +217,8 @@ multidict==6.7.1
     #   aiohttp
     #   brtech-fusion
     #   yarl
+mutagen==1.47.0
+    # via -r requirements.in
 numpy==2.4.4
     # via
     #   imageio

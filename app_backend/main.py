@@ -1,5 +1,6 @@
 # /main.py
 import logging
+import os
 from typing import Any
 
 from brtech_backend import get_session_maker
@@ -16,6 +17,7 @@ from brtech_backend.logger.routers import a4_logger_router_classes
 from brtech_backend.payment.routers import payment_router_classes
 from brtech_backend.task.routers import TaskRecordRouter
 from brtech_backend.ui.routers import ui_router_classes
+from imageio_ffmpeg import get_ffmpeg_exe
 
 from app.config import thba_app_settings
 from app.routers import thba_router_classes
@@ -23,6 +25,22 @@ from app.routers import thba_router_classes
 Public(DictionaryRouteKey.QUERY_BY_TYPES)(DictionaryRouter)
 
 logger = logging.getLogger("application")
+
+try:
+  ffmpeg_path = get_ffmpeg_exe()
+
+  # 2. 设置 MoviePy 专属环境变量
+  os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_path
+
+  # 3. 将 ffmpeg 所在目录加入系统 PATH（双重保险）
+  # 这样即使某些库直接调用 "ffmpeg" 命令也能找到
+  ffmpeg_dir = os.path.dirname(ffmpeg_path)
+  if ffmpeg_dir not in os.environ["PATH"]:
+    os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ["PATH"]
+
+  print(f"FFmpeg path set to: {ffmpeg_path}")
+except Exception as e:
+  print(f"Warning: Failed to locate ffmpeg via imageio-ffmpeg: {e}")
 
 
 class MyApplication(Application):
