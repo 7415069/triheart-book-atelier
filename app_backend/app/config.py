@@ -41,6 +41,8 @@ class ThbaAppSettings(AppSettings, PaySettings):
 
   # [新增] 日志级别，默认为 INFO
   LOG_LEVEL: str = "INFO"
+  LOG_FILE_ENABLE: bool = True
+  LOG_FILE_PATH: str = "logs/thba.log"
 
   # --- 路径配置 ---
   CONTEXT_PATH: str = "/thba"

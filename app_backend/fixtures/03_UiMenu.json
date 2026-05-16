@@ -43,7 +43,7 @@
       "model_id": "menu_business_page", "parent_id": "menu_business", "title": "书页管理", "icon": "Film", "api_prefix": "/page", "path": "/page", "component": "views/page/index", "sort_order": 203, "hidden": true
     },
     {
-      "model_id": "menu_business_video", "parent_id": "menu_business", "title": "视频管理", "icon": "VideoCameraFilled", "api_prefix": "/chapterVideo", "path": "/video", "component": "views/video/index", "sort_order": 204, "hidden": true
+      "model_id": "menu_business_video", "parent_id": "menu_business", "title": "视频管理", "icon": "VideoCameraFilled", "api_prefix": "/chapterVideo", "path": "/chapterVideo", "component": "views/video/index", "sort_order": 204, "hidden": true
     },
     {
       "model_id": "menu_business_term", "parent_id": "menu_business", "title": "术语管理", "icon": "Picture", "api_prefix": "/term", "path": "/term", "component": "views/term/index", "sort_order": 204, "hidden": true
