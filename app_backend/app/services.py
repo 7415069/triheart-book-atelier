@@ -1,12 +1,7 @@
 # /app/services.py
 import asyncio
-import base64
 import json
 import os
-import re
-import uuid
-from hashlib import md5
-from time import time
 from typing import List, Tuple, Callable, Dict, Any, Sequence, Generic
 
 import httpx
@@ -15,7 +10,7 @@ from brtech_backend.core import database
 from brtech_backend.core.config import app_settings
 from brtech_backend.core.models import M
 from brtech_backend.core.schemas import UniqueConstraint
-from brtech_backend.core.services import StringPKeyRecurseService, StringPKeyService, Service
+from brtech_backend.core.services import StringPKeyRecurseService, StringPKeyService
 from brtech_backend.dictionary.services import StringPKeyWithDictionaryService
 from brtech_backend.payment.handler import PaymentDispatcher, PaymentServiceMixin
 from brtech_backend.payment.models import PayOrderModel
@@ -82,32 +77,6 @@ async def run_video_generation_task(user_id: str | None, chapter_id: str, task_i
   async with session_maker() as new_db:
     service = TriHeartChapterVideoService(new_db)
     await service.generate_chapter_video(user_id, chapter_id, task_id)
-
-
-async def cdn_sign_url(service: Service, user_id, raw_path: str) -> str:
-  if thba_app_settings.CDN_OSS_ENABLE:
-    secret_key = thba_app_settings.CDN_OSS_SECRET_KEY
-    full_path = f"/{thba_app_settings.OSS_BUCKET_NAME}/{raw_path}"
-    path = re.sub(r'/+', '/', full_path)
-    extra_params = {}
-    if thba_app_settings.CDN_OSS_PROVIDER == "Gcore":
-      ttl = 3600  # TTL of URL (in sec)
-      expires = int(time()) + ttl  # Token generation
-      token_hash = md5(f"{expires}{path} {secret_key}".encode()).digest()
-      token = base64.b64encode(token_hash).decode().replace("\n", "").replace("+", "-").replace("/", "_").replace("=", "")
-      extra_params = {"md5": token, "expires": str(expires)}
-    if thba_app_settings.CDN_OSS_PROVIDER == "EdgeOne":
-      timestamp = str(int(time()))
-      rand = str(uuid.uuid4().hex[:8])
-      uid = str(user_id) if user_id else "0"
-      hash_str = f"{path}-{timestamp}-{rand}-{uid}-{secret_key}"
-      token_hash = md5(hash_str.encode('utf-8')).hexdigest()
-      token = f"{timestamp}-{rand}-{uid}-{token_hash}"
-      extra_params = {"md5": token}
-    raw_sign_url = await Service.get_oss_download_sign_url(service, user_id, raw_path, "", extra_params)
-    return raw_sign_url.replace(thba_app_settings.OSS_ENDPOINT, thba_app_settings.CDN_OSS_ENDPOINT)
-  else:
-    return await Service.get_oss_download_sign_url(service, user_id, raw_path, "")
 
 
 # =========================================================
@@ -226,32 +195,7 @@ class TriHeartPageService(StringPKeyService[TriHeartPageModel, TriHeartPageCrud,
     if not target_path:
       raise HTTPException(status_code=404, detail="图片资源缺失")
 
-    sign_url = await cdn_sign_url(self, user_id, target_path)
-    # if thba_app_settings.CDN_OSS_ENABLE:
-    #   secret_key = thba_app_settings.CDN_OSS_SECRET_KEY
-    #   raw_path = f"/{thba_app_settings.OSS_BUCKET_NAME}/{target_path}"
-    #   path = re.sub(r'/+', '/', raw_path)
-    #   extra_params = {}
-    #   if thba_app_settings.CDN_OSS_PROVIDER == "Gcore":
-    #     ttl = 3600  # TTL of URL (in sec)
-    #     expires = int(time()) + ttl  # Token generation
-    #     token_hash = md5(f"{expires}{path} {secret_key}".encode()).digest()
-    #     token = base64.b64encode(token_hash).decode().replace("\n", "").replace("+", "-").replace("/", "_").replace("=", "")
-    #     extra_params = {"md5": token, "expires": str(expires)}
-    #   if thba_app_settings.CDN_OSS_PROVIDER == "EdgeOne":
-    #     timestamp = str(int(time()))
-    #     rand = "33"
-    #     uid = "55"
-    #     hash_str = f"{path}-{timestamp}-{rand}-{uid}-{secret_key}"
-    #     token = md5(hash_str.encode('utf-8')).hexdigest()
-    #     extra_params = {"md5": token}
-    #   raw_sign_url = await self.get_oss_download_sign_url(user_id, target_path, "", extra_params)
-    #   sign_url = raw_sign_url.replace(thba_app_settings.OSS_ENDPOINT, thba_app_settings.CDN_OSS_ENDPOINT)
-    # else:
-    #   sign_url = await self.get_oss_download_sign_url(user_id, target_path, "")
-    # https://minio.brtech.top/thba/681186536234029056/2026/0417/TriHeartBookModel-700345638113644544/webp/original/1.webp?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=CcLG5FcYksvDUE6oca1e%2F20260422%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260422T110341Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=ae51a62fe4909f6ec44052ee90bb6fb2a39e6e12ce6b5b8621b05a20a3510036
-
-    return sign_url
+    return await self.get_oss_download_sign_url((user_id or ""), target_path, "", with_cdn=True)
 
 
 # [新增] 章节与书页关联表 Service
@@ -265,29 +209,7 @@ class TriHeartBookService(StringPKeyWithDictionaryService[TriHeartBookModel, Tri
     book: TriHeartBookModel | None = await self.get(user_id, book_id)
     sign_url: str = ""
     if book:
-      sign_url = await cdn_sign_url(self, user_id, book.book_cover)
-      # if thba_app_settings.CDN_OSS_ENABLE:
-      #   secret_key = thba_app_settings.CDN_OSS_SECRET_KEY
-      #   raw_path = f"/{thba_app_settings.OSS_BUCKET_NAME}/{book.book_cover}"
-      #   path = re.sub(r'/+', '/', raw_path)
-      #   extra_params = {}
-      #   if thba_app_settings.CDN_OSS_PROVIDER == "Gcore":
-      #     ttl = 3600  # TTL of URL (in sec)
-      #     expires = int(time()) + ttl  # Token generation
-      #     token_hash = md5(f"{expires}{path} {secret_key}".encode()).digest()
-      #     token = base64.b64encode(token_hash).decode().replace("\n", "").replace("+", "-").replace("/", "_").replace("=", "")
-      #     extra_params = {"md5": token, "expires": str(expires)}
-      #   if thba_app_settings.CDN_OSS_PROVIDER == "EdgeOne":
-      #     timestamp = str(int(time()))
-      #     rand = "33"
-      #     uid = "55"
-      #     hash_str = f"{path}-{timestamp}-{rand}-{uid}-{secret_key}"
-      #     token = md5(hash_str.encode('utf-8')).hexdigest()
-      #     extra_params = {"md5": token}
-      #   raw_sign_url = await self.get_oss_download_sign_url(user_id, book.book_cover, "", extra_params)
-      #   sign_url = raw_sign_url.replace(thba_app_settings.OSS_ENDPOINT, thba_app_settings.CDN_OSS_ENDPOINT)
-      # else:
-      #   sign_url = await self.get_oss_download_sign_url(user_id, book.book_cover, "")
+      sign_url = await self.get_oss_download_sign_url(user_id, book.book_cover or "", "", with_cdn=True)
     return sign_url
 
   async def pre_create(self, user_id: str, model: TriHeartBookModel) -> None:
@@ -979,9 +901,7 @@ class TriHeartPageTermService(StringPKeyWithDictionaryService[TriHeartPageTermMo
 
 
 class TriHeartPageAttachmentService(StringPKeyWithDictionaryService[TriHeartPageAttachmentModel, TriHeartPageAttachmentCrud, TriHeartPageAttachmentQuery]):
-
-  async def get_oss_download_sign_url(self, user_id: str, object_key: str, save_name: str | None = None, extra_datas: dict[str, str | list[str] | tuple[str]] | None = None) -> str:
-    return await cdn_sign_url(self, user_id, object_key)
+  pass
 
 
 class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapterVideoModel, TriHeartChapterVideoCrud, TriHeartChapterVideoQuery]):
@@ -991,7 +911,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
     video = await self.get(user_id, video_id)
     if not video or not video.video_path:
       return ""
-    return await cdn_sign_url(self, user_id, video.video_path)
+    return await self.get_oss_download_sign_url(user_id, video.video_path, with_cdn=True)
 
   async def get_by_chapter_id(self, user_id: str | None, chapter_id: str) -> TriHeartChapterVideoModel | None:
     """根据章节 ID 获取已完成的视频"""
@@ -1033,7 +953,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
 
     # 2. 检查是否已有视频记录（失败重试时保留已有 script_json 用于断点续跑）
     var_prefix = "var/"
-    output_dir = f"{var_prefix}{book_id}/{chapter_id}"
+    output_dir = f"{var_prefix}{user_id}/{book_id}/{chapter_id}"
     output_path = f"{output_dir}/output.mp4"
 
     exist = await self.get_by_chapter_id(user_id, chapter_id)
@@ -1071,7 +991,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
       # page_local_paths key 是连续序号（1, 2, 3...），与脚本中 img_index 严格对应
       page_local_paths: dict[int, str] = {}
 
-      local_dir = f"{var_prefix}{book_id}/{chapter_id}/webp"
+      local_dir = f"{var_prefix}{user_id}/{book_id}/{chapter_id}/webp"
       os.makedirs(local_dir, exist_ok=True)
 
       # 先把磁盘上已有的 webp 加载进来（跳过已下载的）
@@ -1094,7 +1014,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
         async with httpx.AsyncClient(timeout=60) as client:
           for idx, (seq_no, page) in enumerate(missing_pages):
             img_path = page.page_image_crop_path or page.page_image_path
-            sign_url = await cdn_sign_url(self, user_id, img_path)
+            sign_url = await self.get_oss_download_sign_url(user_id or "", img_path)
             try:
               resp = await client.get(sign_url)
               if resp.status_code == 200:
@@ -1113,7 +1033,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
 
       # 4b. 生成章节 PDF 切片（送给 AI 用，比 webp 更忠实原文——矢量文字、无损）
       # 优先从 OSS 下载原始 PDF，再在本地切片；若 PDF 已缓存则复用
-      pdf_slice_path = f"{var_prefix}{book_id}/{chapter_id}/chapter_slice.pdf"
+      pdf_slice_path = f"{var_prefix}{user_id}/{book_id}/{chapter_id}/chapter_slice.pdf"
       pdf_bytes_for_ai: bytes | None = None
 
       if os.path.exists(pdf_slice_path) and os.path.getsize(pdf_slice_path) > 100:
@@ -1125,7 +1045,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
         raw_pdf_local = f"{var_prefix}{book.book_pdf_path}"
         if not (os.path.exists(raw_pdf_local) and os.path.getsize(raw_pdf_local) > 1024):
           await task_manager.update_progress(task_id, 12, "下载原始 PDF...")
-          pdf_sign_url = await cdn_sign_url(self, user_id, book.book_pdf_path)
+          pdf_sign_url = await self.get_oss_download_sign_url(user_id, book.book_pdf_path)
           async with httpx.AsyncClient(timeout=300) as client:
             resp = await client.get(pdf_sign_url)
             if resp.status_code == 200:
@@ -1210,7 +1130,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
       # 6. TTS 配音（本地已有音频文件则跳过，断点续跑）
       await task_manager.update_progress(task_id, 32, "正在生成配音...")
       tts = TtsHelper(voice=thba_app_settings.VIDEO_TTS_VOICE)
-      audio_dir = f"{var_prefix}{book_id}/{chapter_id}/audio"
+      audio_dir = f"{var_prefix}{user_id}/{book_id}/{chapter_id}/audio"
       os.makedirs(audio_dir, exist_ok=True)
 
       scene_audio_paths: dict[int, str] = {}
@@ -1277,7 +1197,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
         await task_manager.update_progress(task_id, 80, "视频渲染完成，正在上传...")
 
       # 8. 上传视频至 OSS
-      object_key = f"{book_id}/{chapter_id}/chapter_video_{chapter_id}.mp4"
+      object_key = f"{user_id}/{book_id}/{chapter_id}/chapter_video_{chapter_id}.mp4"
       content_type = "video/mp4"
 
       upload_sign_url = await self.get_oss_upload_sign_url(user_id, object_key, content_type=content_type)
@@ -1331,7 +1251,7 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
       # 清理本地临时文件
       try:
         import shutil
-        shutil.rmtree(f"{var_prefix}video/{book_id}/{chapter_id}", ignore_errors=True)
+        shutil.rmtree(f"{var_prefix}{user_id}/{book_id}/{chapter_id}", ignore_errors=True)
       except Exception:
         pass
 

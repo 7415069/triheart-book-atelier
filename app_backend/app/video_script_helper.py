@@ -225,53 +225,52 @@ class VideoScriptHelper:
       - 禁止注水：不说"非常重要""意义深远"这类空话
 
       ## 场景数量
-      - 按 PDF 实际页数和内容密度自然划分，不强制每页的场景数
-      - 全章总场景数控制在 8~20 个，保证总时长 3~8 分钟
+      - 按 PDF 实际页数和内容密度自然划分，但是每个 PDF 页，至少生成一个场景
       - 第一个场景点明本章核心问题；每个子标题至少有一个场景；最后一个场景给出结论或留下思考
       - 忽略路人甲碎碎念的内容
 
       ## 输入说明
-      用户发送的是本章节完整的 PDF 文件。PDF 第 N 页对应 img_index = N（从 1 开始），
-      img_index 不能超过 PDF 的实际总页数。
+      - 用户发送的是本章节完整的 PDF 文件。PDF 第 N 页对应 img_index = N（从 1 开始）
+      - img_index 不能超过 PDF 的实际总页数
 
       ## 输出字段规范
       ### scene_id（整数）
-      从 1 开始的连续整数。
+      - 从 1 开始的连续整数
 
       ### img_index（整数）
-      该场景对应的 PDF 页码（1-based）。
+      - 该场景对应的 PDF 页码（1-based）
 
       ### narration（字符串）
-      旁白讲解词。直接面向听众朗读，口语化，长度 60~200 字。
+      - 旁白讲解词。直接面向听众朗读，口语化，长度 60~200 字
 
       ### focus_area（数组）
-      【必须】统一固定为 [0.0, 0.0, 1.0, 1.0]。
+      - 【必须】统一固定为 [0.0, 0.0, 1.0, 1.0]
 
       ### camera_action（字符串）
-      【必须】统一固定为 "Steady"。
+      - 【必须】统一固定为 "Steady"
 
       ### duration（浮点数）
-      场景时长 = narration 字数 ÷ 3.5。
+      - 场景时长 = narration 字数 ÷ 3.5
 
       ## 输出格式
-      只返回纯 JSON 数组，不加任何 markdown 标记、注释或前后说明文字。
-
-      [
-        {{
-          "scene_id": 1,
-          "img_index": 1,
-          "narration": "这一章要解决的问题是……",
-          "focus_area": [0.0, 0.0, 1.0, 1.0],
-          "camera_action": "Steady",
-          "duration": 18.0
-        }},
-        {{
-          "scene_id": 2,
-          "img_index": 1,
-          "narration": "先看这个核心概念……",
-          "focus_area": [0.0, 0.2, 1.0, 0.4],
-          "camera_action": "ZoomIn",
-          "duration": 24.0
-        }}
-      ]
+      - 只返回纯 JSON 数组，不加任何 markdown 标记、注释或前后说明文字
+      - 样例：
+        [
+          {{
+            "scene_id": 1,
+            "img_index": 1,
+            "narration": "这一章要解决的问题是……",
+            "focus_area": [0.0, 0.0, 1.0, 1.0],
+            "camera_action": "Steady",
+            "duration": 18.0
+          }},
+          {{
+            "scene_id": 2,
+            "img_index": 1,
+            "narration": "先看这个核心概念……",
+            "focus_area": [0.0, 0.2, 1.0, 0.4],
+            "camera_action": "ZoomIn",
+            "duration": 24.0
+          }}
+        ]
     """)

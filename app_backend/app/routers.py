@@ -234,7 +234,7 @@ class TriHeartChapterVideoRouter(StringPKeyWithDictionaryRouter[TriHeartChapterV
     ):
       video = await service.get_by_chapter_id(auth_context.user_id, chapter_id)
       if video and video.process_status == "2":
-        sign_url = await service.get_video_sign_url(auth_context.user_id, video.model_id)
+        sign_url = await service.get_video_sign_url(auth_context.user_id, video.model_id or "")
         return RestResponse.success(data={"video": video, "signUrl": sign_url})
       return RestResponse.success(data=None)
 
