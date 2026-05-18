@@ -15,9 +15,7 @@ class TriHeartChapterCrud(StringPKeyRecurseCrud[TriHeartChapterModel]):
     if not book_id:
       return 0
     # 使用 returning 确认删除行数 (Postgres支持，MySQL低版本可能不支持，若不支持可改用 rowcount)
-    stmt = delete(self.model)
-    stmt.where(getattr(self.model, 'book_id') == book_id)
-    stmt.returning(getattr(self.model, 'model_id'))
+    stmt = delete(self.model).where(getattr(self.model, 'book_id') == book_id).returning(getattr(self.model, 'model_id'))
     result = await self.db.execute(stmt)
     return len(result.scalars().all())
 
@@ -27,9 +25,7 @@ class TriHeartPageCrud(StringPKeyCrud[TriHeartPageModel]):
     """根据 book_id 删除书页，返回删除数量"""
     if not book_id:
       return 0
-    stmt = delete(self.model)
-    stmt.where(getattr(self.model, 'book_id') == book_id)
-    stmt.returning(getattr(self.model, 'model_id'))
+    stmt = delete(self.model).where(getattr(self.model, 'book_id') == book_id).returning(getattr(self.model, 'model_id'))
     result = await self.db.execute(stmt)
     return len(result.scalars().all())
 
@@ -37,9 +33,7 @@ class TriHeartPageCrud(StringPKeyCrud[TriHeartPageModel]):
     """根据 chapter_id 删除书页，返回删除数量"""
     if not chapter_id:
       return 0
-    stmt = delete(self.model)
-    stmt.where(getattr(self.model, 'chapter_id') == chapter_id)
-    stmt.returning(getattr(self.model, 'model_id'))
+    stmt = delete(self.model).where(getattr(self.model, 'chapter_id') == chapter_id).returning(getattr(self.model, 'model_id'))
     result = await self.db.execute(stmt)
     return len(result.scalars().all())
 
@@ -56,7 +50,7 @@ class TriHeartPageCrud(StringPKeyCrud[TriHeartPageModel]):
           TriHeartBookUserModel.purchase_status
       )
       .join(TriHeartBookModel, TriHeartPageModel.book_id == TriHeartBookModel.model_id)
-      .outerjoin(TriHeartBookUserModel, and_(TriHeartBookUserModel.book_id == TriHeartPageModel.book_id, TriHeartBookUserModel.user_id == user_id)) # type: ignore
+      .outerjoin(TriHeartBookUserModel, and_(TriHeartBookUserModel.book_id == TriHeartPageModel.book_id, TriHeartBookUserModel.user_id == user_id))  # type: ignore
       .where(TriHeartPageModel.book_id == book_id, TriHeartPageModel.page_no == page_no)
     )
 
@@ -89,8 +83,7 @@ class TriHeartPageTermCrud(StringPKeyCrud[TriHeartPageTermModel]):
   async def remove_by_book_id(self, book_id: str) -> int:
     if not book_id:
       return 0
-    stmt = delete(self.model)
-    stmt.where(getattr(self.model, 'book_id') == book_id)
+    stmt = delete(self.model).where(getattr(self.model, 'book_id') == book_id)
     await self.db.execute(stmt)
     return 0
 
@@ -104,11 +97,4 @@ class TriHeartPageAttachmentCrud(StringPKeyCrud[TriHeartPageAttachmentModel]):
 
 
 class TriHeartChapterVideoCrud(StringPKeyCrud[TriHeartChapterVideoModel]):
-  #
-  # async def get_by_chapter_id(self, chapter_id: str) -> TriHeartChapterVideoModel | None:
-  #   """根据章节 ID 获取视频"""
-  #   if not chapter_id:
-  #     return None
-  #   stmt = select(self.model).where(self.model.chapter_id == chapter_id)
-  #   return await self.select_one(stmt)
   pass
