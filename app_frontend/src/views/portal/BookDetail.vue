@@ -228,7 +228,11 @@ const allPreviewUrlList = computed(() =>
 )
 
 const shareBook = () => {
-
+  const url = new URL(window.location.href)
+  url.searchParams.set('referrer_user_id', userStore.userInfo?.modelId || '')
+  navigator.clipboard.writeText(url.toString()).then(() => {
+    ElMessage.success('分享链接已复制到剪贴板')
+  })
 }
 const startReading = async () => {
   let targetPage = 1
@@ -265,13 +269,21 @@ const handleBuy = () => {
     return;
   }
 
+  const referrerUserId = localStorage.getItem('referrer_user_id')
+  const expires = localStorage.getItem('referrer_user_id_expires')
+  let validRefId: string | undefined = undefined
+  if (referrerUserId && expires && Date.now() < Number(expires)) {
+    validRefId = referrerUserId
+  }
+
   const snapshot = JSON.parse(JSON.stringify(book.value));
   paymentDialogRef.value.open({
     businessId: book.value.modelId,
     paySubject: `购买书籍 - ${book.value.bookTitle}`,
     amount: book.value.bookSalePrice,
     businessType: 'book_purchase',
-    paySnapshot: snapshot
+    paySnapshot: snapshot,
+    referrerUserId: validRefId  // <= 传推广人ID
   });
 }
 
@@ -406,6 +418,14 @@ onMounted(async () => {
 
         }, 100)
       }
+    }
+
+    const referrerUserId = route.query.referrer_user_id as string
+    if (referrerUserId) {
+      localStorage.setItem('referrer_user_id', referrerUserId)
+      // 设置30天有效期
+      const expires = Date.now() + 30 * 24 * 60 * 60 * 1000
+      localStorage.setItem('referrer_user_id_expires', String(expires))
     }
   } catch (e) {
     console.error(e)
