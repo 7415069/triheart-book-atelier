@@ -9,7 +9,7 @@
       "icon": "Wallet",
       "action_type": "json_action",
       "platform": "any",
-      "action_order": 1,
+      "action_order": 101,
       "action_data": {
         "code": "view_wallet",
         "label": "我的钱包",
@@ -32,7 +32,7 @@
       "icon": "Coin",
       "action_type": "json_action",
       "platform": "portal",
-      "action_order": 2,
+      "action_order": 102,
       "action_data": {
         "code": "recharge_form",
         "label": "账户充值",
@@ -59,11 +59,38 @@
     },
     {
       "title": "--------",
-      "key": "divider_1",
+      "key": "divider_200",
       "icon": "none",
       "action_type": "divider",
       "platform": "portal",
-      "action_order": 3
+      "action_order": 200
+    },
+    {
+      "title": "联系客户",
+      "key": "contact_customer",
+      "icon": "Service",
+      "action_type": "json_action",
+      "platform": "portal",
+      "action_order": 201,
+      "action_data": {
+        "code": "contact_cs",
+        "label": "联系客户",
+        "type": "dialog",
+        "dialogWidth": "400px",
+        "readonly": true,
+        "formFields": [
+          {"prop": "phone", "label": "电话", "component": "ElInput", "defaultValue": "15811356278", "span": 24, "componentProps": {"readonly": true}},
+          {"prop": "wechat", "label": "微信", "component": "ElInput", "defaultValue": "Q6141453Q", "span": 24, "componentProps": {"readonly": true}}
+        ]
+      }
+    },
+    {
+      "title": "--------",
+      "key": "divider_300",
+      "icon": "none",
+      "action_type": "divider",
+      "platform": "portal",
+      "action_order": 300
     },
     {
       "title": "个人中心",
@@ -71,7 +98,7 @@
       "icon": "User",
       "action_type": "json_action",
       "platform": "any",
-      "action_order": 4,
+      "action_order": 301,
       "action_data": {
         "code": "profile_edit",
         "label": "个人中心",
@@ -96,7 +123,7 @@
       "icon": "Lock",
       "action_type": "json_action",
       "platform": "any",
-      "action_order": 5,
+      "action_order": 302,
       "action_data": {
         "code": "change_pwd_self",
         "label": "修改密码",
@@ -116,11 +143,11 @@
     },
     {
       "title": "--------",
-      "key": "divider_2",
+      "key": "divider_400",
       "icon": "none",
       "action_type": "divider",
       "platform": "any",
-      "action_order": 6
+      "action_order": 400
     },
     {
       "title": "退出登录",
@@ -129,7 +156,7 @@
       "action_type": "api",
       "url": "/auth/logout",
       "platform": "any",
-      "action_order": 7
+      "action_order": 401
     }
   ]
 }
