@@ -38,12 +38,8 @@ export const useUserStore = defineStore('user', () => {
         userInfo.value = response.data;
         userName.value = response.data.userName
         if (userInfo.value?.userAvatar) {
-          const formData = new FormData()
-          formData.append('objectKey', userInfo.value.userAvatar)
-          const {data: response} = await request.post<Response<string>>('/4a/user/storage/signedUrl/download', formData, {
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-            }
+          const {data: response} = await request.post<Response<string>>('/4a/user/storage/signedUrl/download', {
+            objectKey: userInfo.value.userAvatar
           })
           if (response.flag && response.data) {
             userAvatar.value = response.data

@@ -150,10 +150,9 @@ export class Index {
   }
 
   static async getAttachmentSignedUrl(filePath: string): Promise<string> {
-    const params = new URLSearchParams({
+    const {data: response} = await request.post<Response<string>>('/pageAttachment/storage/signedUrl/download', {
       objectKey: filePath
     });
-    const {data: response} = await request.post<Response<string>>('/pageAttachment/storage/signedUrl/download', params);
 
     if (response && response.flag && response.data) {
       return response.data;
@@ -179,11 +178,11 @@ export class Index {
   /** 根据章节ID获取视频导读 */
   static async getChapterVideo(chapterId: string): Promise<ChapterVideoInfo | null> {
     try {
-      const {data: response} = await request.post<Response<{video: ChapterVideoInfo; signUrl: string} | null>>(
-        `/chapterVideo/byChapter/${chapterId}`
+      const {data: response} = await request.post<Response<{ video: ChapterVideoInfo; signUrl: string } | null>>(
+          `/chapterVideo/byChapter/${chapterId}`
       );
       if (response && response.flag && response.data) {
-        return { ...response.data.video, signUrl: response.data.signUrl };
+        return {...response.data.video, signUrl: response.data.signUrl};
       }
     } catch (e) {
       console.warn('获取章节视频失败', e);

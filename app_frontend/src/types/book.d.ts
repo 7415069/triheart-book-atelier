@@ -27,6 +27,10 @@ export interface TriHeartBookModel {
   bookStatus?: string; // 上架、下架等
   bookStatusDisplay?: string;
 
+  // 试读限制
+  guestPreviewLimit?: number; // 游客(匿名用户)能试读的页数
+  userPreviewLimit?: number; // 注册用户能试读的页数
+
   // 价格体系
   bookListPrice?: number; // 定价 (划线价)
   bookSalePrice?: number; // 售价 (实际价格)

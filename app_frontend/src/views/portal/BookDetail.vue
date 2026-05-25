@@ -35,6 +35,8 @@
                 <div class="spec-item"><span class="label">作者</span><span class="value">{{ book.bookAuthor || '未知' }}</span></div>
                 <div class="spec-item" v-if="book.bookTranslator"><span class="label">译者</span><span class="value">{{ book.bookTranslator }}</span></div>
                 <div class="spec-item"><span class="label">页数</span><span class="value">{{ book.bookPageCount || '-' }} 页</span></div>
+                <div class="spec-item"><span class="label">匿名</span><span class="value">前 {{ book.guestPreviewLimit ?? '-' }} 页可试读</span></div>
+                <div class="spec-item"><span class="label">注册</span><span class="value">前 {{ book.userPreviewLimit ?? '-' }} 页可试读</span></div>
                 <div class="spec-item" v-if="book.bookIsbn"><span class="label">ISBN</span><span class="value">{{ book.bookIsbn }}</span></div>
               </div>
             </div>
@@ -64,7 +66,11 @@
                 </template>
                 <template v-else>
                   <button class="btn-main buy" @click="handleBuy"> 购买</button>
-                  <el-tooltip content="使用 Chrome/Edge 浏览器，能获得更好的阅读体验" placement="top" effect="dark">
+                  <el-tooltip placement="top" effect="dark">
+                    <template #content>
+                      <div v-if="!userStore.isLoggedIn" style="margin-bottom: 4px;">注册后能获得术语高亮、视频伴读、代码下载和读书笔记等更好的阅读体验</div>
+                      <div>使用 Chrome/Edge 浏览器，能获得更好的阅读体验</div>
+                    </template>
                     <button class="btn-sub" @click="startReading"> 试读</button>
                   </el-tooltip>
                 </template>

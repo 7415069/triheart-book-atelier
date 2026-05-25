@@ -141,10 +141,8 @@ export class ShelfApi {
     }
 
     try {
-      const formData = new FormData()
-      formData.append('objectKey', objectKey)
-      const {data: signedUrlData} = await request.post<any>('/book/storage/signedUrl/download', formData, {
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'}
+      const {data: signedUrlData} = await request.post<any>('/book/storage/signedUrl/download', {
+        objectKey: objectKey
       })
       if (signedUrlData && signedUrlData.flag) {
         return signedUrlData.data
