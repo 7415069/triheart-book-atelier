@@ -51,6 +51,7 @@ export interface TriHeartBookModel {
   bookAuthor: string;
   bookPageCount: number;
   bookCover?: string;
+  openSource?: string;
 }
 
 

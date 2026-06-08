@@ -19,20 +19,22 @@
 
         <!-- 元数据 -->
         <div class="hero-meta">
-          <div class="license-badge" v-if="book.openSourceLicense">
-            开源 · {{ book.openSourceLicense }}
-          </div>
-          <div class="license-badge" v-else>
-            开源 · 免费分发
-          </div>
+          <div class="meta-top">
+            <div class="license-badge" v-if="book.openSourceLicense">
+              开源 · {{ book.openSourceLicense }}
+            </div>
+            <div class="license-badge" v-else>
+              开源 · 免费分发
+            </div>
 
-          <h1 class="title">{{ book.bookTitle }}</h1>
-          <h2 v-if="book.bookSubtitle" class="subtitle">{{ book.bookSubtitle }}</h2>
+            <h1 class="title">{{ book.bookTitle }}</h1>
+            <h2 v-if="book.bookSubtitle" class="subtitle">{{ book.bookSubtitle }}</h2>
 
-          <div class="specs-list">
-            <div class="spec-item"><span class="label">作者</span><span class="value">{{ book.bookAuthor || '未知' }}</span></div>
-            <div class="spec-item" v-if="book.bookTranslator"><span class="label">译者</span><span class="value">{{ book.bookTranslator }}</span></div>
-            <div class="spec-item"><span class="label">页数</span><span class="value">{{ book.bookPageCount || '-' }} 页</span></div>
+            <div class="specs-list">
+              <div class="spec-item"><span class="label">作者</span><span class="value">{{ book.bookAuthor || '未知' }}</span></div>
+              <div class="spec-item" v-if="book.bookTranslator"><span class="label">译者</span><span class="value">{{ book.bookTranslator }}</span></div>
+              <div class="spec-item"><span class="label">页数</span><span class="value">{{ book.bookPageCount || '-' }} 页</span></div>
+            </div>
           </div>
 
           <!-- 按钮区 -->
@@ -179,6 +181,11 @@ onMounted(async () => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
+
+  .meta-top {
+    flex-shrink: 0;
+  }
 
   .license-badge {
     display: inline-flex;
