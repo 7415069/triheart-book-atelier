@@ -39,7 +39,8 @@
       <div class="badges">
         <!-- 模式A: 公共广场 -->
         <template v-if="mode === 'public'">
-          <span v-if="book.tags && book.tags.length" class="badge-tag market-tag">{{ book.tags[0] }}</span>
+          <span v-if="book.openSource === '1'" class="badge-tag open-source-tag">开源</span>
+          <span v-else-if="book.tags && book.tags.length" class="badge-tag market-tag">{{ book.tags[0] }}</span>
           <span v-else-if="book.bookCategoryDisplay" class="badge-tag category-tag">{{ book.bookCategoryDisplay }}</span>
         </template>
 
@@ -61,11 +62,11 @@
 
         <!-- 模式A: 显示价格 -->
         <div v-if="mode === 'public'" class="footer-public">
-          <span class="price-text" :class="{ 'free': isFree }">
+          <span class="price-text" :class="{ 'free': isFree, 'open-source': isOpenSource }">
             {{ priceDisplay }}
           </span>
           <span v-if="showListPrice" class="list-price">
-            ¥{{ book.bookListPrice }}
+            ¥{{ book.bookListPrice?.toFixed(2) }}
           </span>
         </div>
 
@@ -145,11 +146,16 @@ watch(() => props.book.bookCover, loadCover)
 onMounted(loadCover)
 
 const isFree = computed(() => !props.book.bookSalePrice || props.book.bookSalePrice === 0)
-const priceDisplay = computed(() => isFree.value ? '免费' : `¥${props.book.bookSalePrice?.toFixed(2)}`)
+const isOpenSource = computed(() => props.book.openSource === '1')
+const priceDisplay = computed(() => {
+  if (isOpenSource.value) return '免费 / 开源'
+  if (isFree.value) return '免费'
+  return `¥${props.book.bookSalePrice?.toFixed(2)}`
+})
 const showListPrice = computed(() => {
   const list = props.book.bookListPrice
   const sale = props.book.bookSalePrice
-  return list !== undefined && sale !== undefined && list > sale
+  return list !== undefined && sale !== undefined && list > sale && props.book.openSource !== '1'
 })
 
 const handleClick = () => emit('click', props.book)
@@ -261,6 +267,10 @@ const handleClick = () => emit('click', props.book)
   background: #f56c6c;
 }
 
+.open-source-tag {
+  background: #16a34a;
+}
+
 .category-tag {
   background: #3b82f6;
 }
@@ -316,6 +326,10 @@ const handleClick = () => emit('click', props.book)
 
     &.free {
       color: #67c23a;
+    }
+
+    &.open-source {
+      color: #16a34a;
     }
   }
 

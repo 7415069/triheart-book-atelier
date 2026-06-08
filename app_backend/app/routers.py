@@ -135,6 +135,18 @@ class TriHeartBookRouter(StringPKeyWithDictionaryRouter[TriHeartBookModel, TriHe
       sign_url = await service.get_cover_sign_url(auth_context.user_id, bookId)
       return RestResponse.success(data=sign_url)
 
+    @self.router.post(
+        "/pdfSignUrl/{bookId}", summary="获取开源书籍PDF签名下载地址",
+        openapi_extra=self._operation("获取开源书籍PDF签名下载地址", OperateType.QUERY)
+    )
+    async def pdf_sign_url(
+        bookId: str = Path(..., description="书籍ID"),
+        service: TriHeartBookService = Depends(self._get_service),
+        auth_context: AuthContext = Depends(self.optional_user_dependency)
+    ):
+      sign_url = await service.get_open_source_pdf_sign_url(auth_context.user_id, bookId)
+      return RestResponse.success(data=sign_url)
+
   pass
 
 

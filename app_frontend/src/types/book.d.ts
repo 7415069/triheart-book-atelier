@@ -13,6 +13,7 @@ export interface TriHeartBookModel {
   bookAuthor?: string;
   bookTranslator?: string;
   bookCover?: string; // 对应后端相对路径，需配合 resolveUrl 使用
+  bookPdfPath?: string; // PDF 文件路径（objectKey），开源书籍会返回
   bookSummary?: string; // 摘要/简介
   bookPageCount?: number;
 
@@ -34,6 +35,10 @@ export interface TriHeartBookModel {
   // 价格体系
   bookListPrice?: number; // 定价 (划线价)
   bookSalePrice?: number; // 售价 (实际价格)
+
+  // 开源标识
+  openSource?: string; // "0" 或 "1"
+  openSourceLicense?: string; // 如 "CC BY-NC-SA 4.0"
 
   // 所有者信息
   ownerId?: string;

@@ -13,11 +13,13 @@ from sqlmodel import Field as SQLModelField
     module_name="书籍管理", action_column_width=360,
     layout=[
       "book_title", "book_subtitle", "book_cover", "book_author", "book_pdf_path", "book_translator", "book_page_count", "toc_begin_page", "toc_end_page", "body_page_offset",
-      "guest_preview_limit", "user_preview_limit", "owner_id", "book_isbn", "book_category", "book_status", "book_list_price", "book_sale_price", "owner_name",
+      "guest_preview_limit", "user_preview_limit", "owner_id", "book_isbn", "book_category", "book_status",
+      "book_list_price", "book_sale_price", "owner_name",
       FieldOption(prop="create_person", table_show=False, add_show=False, edit_show=False, search_show=False, detail_show=False, span=6),
       FieldOption(prop="create_timestamp", table_show=False, add_show=False, edit_show=False, search_show=False, span=6),
       FieldOption(prop="update_person", table_show=False, add_show=False, edit_show=False, search_show=False, detail_show=False, span=6),
       FieldOption(prop="update_timestamp", table_show=False, add_show=False, edit_show=False, search_show=False, span=6),
+      "open_source", "open_source_license",
       FieldOption(prop="book_summary", table_show=False, span=12),
       FieldOption(prop="remark", table_show=False, span=12)
     ],
@@ -133,7 +135,7 @@ class TriHeartBookModel(StringPKeyModel, table=True):
     str | None,
     FieldOption(
         table_show=False, add_show=True, edit_show=True, detail_show=True, search_show=False, span=18, detail_span=18,
-        component=UIComponent.UPLOAD, component_props=FieldOption.UploadComponentProps(accept=".pdf", max_size=50, limit=1)
+        component=UIComponent.UPLOAD, component_props=FieldOption.UploadComponentProps(accept=".pdf", max_size=128, limit=1)
     )
   ] = SQLModelField(
       description="书籍PDF路径",
@@ -195,19 +197,19 @@ class TriHeartBookModel(StringPKeyModel, table=True):
 
   book_list_price: Annotated[
     float,
-    FieldOption(table_show=False, add_show=True, edit_show=True, detail_show=True, search_show=False, span=4, component=UIComponent.INPUT_NUMBER)
+    FieldOption(table_show=False, add_show=True, edit_show=True, detail_show=True, search_show=False, span=4, component=UIComponent.INPUT_NUMBER, component_props={"precision": 2, "step": 0.01})
   ] = SQLModelField(
       description="书籍定价（元）",
-      sa_type=Integer, nullable=True,
+      sa_type=Float, nullable=True,
       sa_column_kwargs={"name": "book_list_price", "comment": "书籍定价（元）"}
   )
 
   book_sale_price: Annotated[
     float,
-    FieldOption(table_show=False, add_show=True, edit_show=True, detail_show=True, search_show=False, required=True, span=4, component=UIComponent.INPUT_NUMBER)
+    FieldOption(table_show=False, add_show=True, edit_show=True, detail_show=True, search_show=False, required=True, span=4, component=UIComponent.INPUT_NUMBER, component_props={"precision": 2, "step": 0.01})
   ] = SQLModelField(
       description="书籍售价（元）",
-      sa_type=Integer, nullable=True,
+      sa_type=Float, nullable=True,
       sa_column_kwargs={"name": "book_sale_price", "comment": "书籍售价（元）"}
   )
 
@@ -227,6 +229,34 @@ class TriHeartBookModel(StringPKeyModel, table=True):
     FieldOption(table_show=False, add_show=False, edit_show=False, detail_show=False, search_show=False)
   ] = ExtraSQLModelField(
       description="书籍状态显示", sa_column_exclude=True
+  )
+
+  open_source: Annotated[
+    str | None,
+    FieldOption(table_show=True, add_show=True, edit_show=True, detail_show=True, search_show=False, span=4, required=False, component=UIComponent.SELECT),
+    Dictionary(store_type=StoreType.DICTIONARY_VALUE, dictionary_type="yes_no", display_field_name="open_source_display"),
+    EnableQuery(query_type=QueryType.EQ)
+  ] = SQLModelField(
+      default="0",
+      description="是否开源书籍",
+      sa_type=String, max_length=4, nullable=True,
+      sa_column_kwargs={"name": "open_source", "comment": "是否开源书籍"}
+  )
+
+  open_source_display: Annotated[
+    str,
+    FieldOption(table_show=False, add_show=False, edit_show=False, detail_show=False, search_show=False)
+  ] = ExtraSQLModelField(
+      description="是否开源书籍显示", sa_column_exclude=True
+  )
+
+  open_source_license: Annotated[
+    str | None,
+    FieldOption(table_show=False, add_show=True, edit_show=True, detail_show=True, search_show=False, span=20, component=UIComponent.INPUT)
+  ] = SQLModelField(
+      description="开源协议 (如 CC BY-NC-SA 4.0)",
+      sa_type=String, max_length=128, nullable=True,
+      sa_column_kwargs={"name": "open_source_license", "comment": "开源协议"}
   )
 
   guest_preview_limit: Annotated[

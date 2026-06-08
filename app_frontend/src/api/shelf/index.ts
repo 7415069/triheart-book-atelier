@@ -161,6 +161,14 @@ export class ShelfApi {
     return ''
   }
 
+  static async getOpenSourcePdfSignUrl(bookId: string): Promise<string> {
+    const {data: response} = await request.post<any>(`/book/pdfSignUrl/${bookId}`)
+    if (response && response.flag) {
+      return response.data || ''
+    }
+    return ''
+  }
+
   static async getPageWebpUrl(bookId: string, pageNo: number, type?: 'crop' | 'origin'): Promise<string> {
     try {
       const deviceType = type || (window.innerWidth < 768 ? 'crop' : 'origin');

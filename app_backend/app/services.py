@@ -248,8 +248,20 @@ class TriHeartBookService(StringPKeyWithDictionaryService[TriHeartBookModel, Tri
     await super().de_identification(user_id, models)
     if models:
       for model in models:
-        # 681186536234029056/2026/0417/TriHeartBookModel-700345638113644544/智能体修行青铜到王者的无品功法.pdf
-        model.book_pdf_path = ""
+        # 开源书籍保留 PDF 路径（前端需要用于生成签名下载地址）
+        if model.open_source != '1':
+          model.book_pdf_path = ""
+
+  async def get_open_source_pdf_sign_url(self, user_id: str | None, book_id: str) -> str:
+    """获取开源书籍的PDF签名下载地址，非开源书籍返回403"""
+    book: TriHeartBookModel | None = await self.get(user_id, book_id)
+    if not book:
+      raise HTTPException(status_code=404, detail="书籍不存在")
+    if book.open_source != '1':
+      raise HTTPException(status_code=403, detail="非开源书籍，不允许获取PDF直链")
+    if not book.book_pdf_path:
+      raise HTTPException(status_code=404, detail="PDF文件资源缺失")
+    return await self.get_oss_download_sign_url(user_id or "", book.book_pdf_path, "", with_cdn=True)
 
   # async def post_update(self, user_id: str, old_model: TriHeartBookModel, new_model: TriHeartBookModel, update_fields: set[str]) -> None:
   #   await super().post_update(user_id, old_model, new_model, update_fields)
