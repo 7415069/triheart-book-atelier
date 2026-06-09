@@ -65,7 +65,7 @@
                   </el-tooltip>
                 </template>
                 <template v-else>
-                  <button class="btn-main buy" @click="handleBuy"> 开启精读</button>
+                  <button class="btn-main buy" @click="handleBuy"> 购买</button>
                   <el-tooltip placement="top" effect="dark">
                     <template #content>
                       <div v-if="!userStore.isLoggedIn" style="margin-bottom: 4px;">注册后能获得术语高亮、视频伴读、代码下载和读书笔记等更好的阅读体验</div>
@@ -285,7 +285,7 @@ const handleBuy = () => {
   const snapshot = JSON.parse(JSON.stringify(book.value));
   paymentDialogRef.value.open({
     businessId: book.value.modelId,
-    paySubject: `沉浸式精读服务费 - ${book.value.bookTitle}`,
+    paySubject: `购买书籍 - ${book.value.bookTitle}`,
     amount: book.value.bookSalePrice,
     businessType: 'book_purchase',
     paySnapshot: snapshot,

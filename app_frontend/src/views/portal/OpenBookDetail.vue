@@ -2,7 +2,9 @@
 <template>
   <div class="open-book-detail-page">
     <div v-if="loading" class="loading-container">
-      <el-icon class="is-loading"><Loading/></el-icon>
+      <el-icon class="is-loading">
+        <Loading/>
+      </el-icon>
     </div>
 
     <div v-else-if="book" class="page-container detail-content">
@@ -40,15 +42,19 @@
           <!-- 按钮区 -->
           <div class="btn-row">
             <button class="btn-pdf" @click="handlePdfRead">
-              <el-icon><Reading/></el-icon>
+              <el-icon>
+                <Reading/>
+              </el-icon>
               阅读/下载
             </button>
+            <!--
             <el-tooltip placement="top" effect="dark" content="高度还原物理书籍阅读感 / 术语高亮 / 读书笔记 / 音视频伴读">
               <button class="btn-immersive" @click="handleImmersiveRead">
                 <el-icon><MagicStick/></el-icon>
                 沉浸式精读
               </button>
             </el-tooltip>
+            -->
           </div>
         </div>
       </div>
@@ -58,7 +64,9 @@
         <div class="summary-header">
           <h3 class="section-title">简介</h3>
           <div class="mini-back-btn" @click="handleBack">
-            <el-icon><ArrowLeft/></el-icon>
+            <el-icon>
+              <ArrowLeft/>
+            </el-icon>
             返回
           </div>
         </div>
@@ -73,8 +81,8 @@
 <script setup lang="ts">
 import {onMounted, ref} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
-import {ArrowLeft, Loading, MagicStick, Reading} from '@element-plus/icons-vue'
-import {ElIcon, ElMessage, ElTooltip} from 'element-plus'
+import {ArrowLeft, Loading, Reading} from '@element-plus/icons-vue'
+import {ElIcon, ElMessage} from 'element-plus'
 import type {UnifiedBookModel} from '@/types/book'
 import {ShelfApi} from '@/api/shelf'
 
