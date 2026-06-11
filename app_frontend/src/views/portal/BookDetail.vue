@@ -77,6 +77,7 @@
                 <template v-if="userStore.isLoggedIn">
                   <button class="btn-sub" @click="shareBook">分享</button>
                 </template>
+                <button class="btn-sub" @click="downloadBook" v-if="book.openSource === '1'"> 下载</button>
               </div>
             </div>
           </div>
@@ -240,6 +241,44 @@ const shareBook = () => {
     ElMessage.success('分享链接已复制到剪贴板')
   })
 }
+
+const downloadBook = async () => {
+  try {
+    const signedUrl = await ShelfApi.getOpenSourcePdfSignUrl(bookId)
+    if (!signedUrl) {
+      ElMessage.error('获取下载地址失败')
+      return
+    }
+
+    // 通过 fetch + blob 触发真正的文件下载（兼容跨域 CDN 场景）
+    ElMessage.info('正在准备下载...')
+    const resp = await fetch(signedUrl)
+    if (!resp.ok) {
+      throw new Error('HTTP ' + resp.status)
+    }
+    const blob = await resp.blob()
+    const blobUrl = window.URL.createObjectURL(blob)
+
+    // 从签名 URL 路径中提取原始文件名（如 "操作系统导论.pdf"）
+    // 比用 bookTitle 拼接更可靠，保留原始文件名
+    const urlObj = new URL(signedUrl)
+    const fileName = urlObj.pathname.split('/').filter(Boolean).pop() || 'download.pdf'
+
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(blobUrl)
+
+    ElMessage.success('下载完成')
+  } catch (e) {
+    console.error('下载失败', e)
+    ElMessage.error('下载失败，请稍后重试')
+  }
+}
+
 const startReading = async () => {
   let targetPage = 1
 
