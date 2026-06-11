@@ -406,11 +406,7 @@ const resetFilter = () => {
 }
 
 const handleBookClick = (book: UnifiedBookModel) => {
-  if (book.openSource === '1') {
-    router.push(`/bookshelf/open/${book.modelId}`)
-  } else {
-    router.push(`/bookshelf/${book.modelId}`)
-  }
+  router.push(`/bookshelf/${book.modelId}`)
 }
 
 const handlePageChange = (newPage: number) => {

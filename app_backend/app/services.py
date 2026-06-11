@@ -203,7 +203,17 @@ class TriHeartChapterPageService(StringPKeyService[TriHeartChapterPageModel, Tri
   pass
 
 
-class TriHeartBookService(StringPKeyWithDictionaryService[TriHeartBookModel, TriHeartBookCrud, TriHeartBookQuery]):
+class TriHeartBookService(StringPKeyWithDictionaryService[TriHeartBookModel, TriHeartBookCrud, TriHeartBookQuery], PaymentServiceMixin):
+
+  def resolve_pay_order(self, order: PayOrderModel) -> TriHeartBookModel:
+    pass
+
+  async def resolve_payment_amount(self, business_id: str, user_id: str) -> float | None:
+    book = await self.get(user_id, business_id)
+    if not book or book.book_sale_price is None:
+      self.logger.warning(f"resolve_payment_amount: 未找到书籍或未设置售价, business_id={business_id}")
+      return None
+    return book.book_sale_price
 
   async def get_cover_sign_url(self, user_id: str, book_id: str) -> str:
     book: TriHeartBookModel | None = await self.get(user_id, book_id)
@@ -842,6 +852,9 @@ class TriHeartBookUserService(StringPKeyWithDictionaryService[TriHeartBookUserMo
   def resolve_update_fields(self, order: PayOrderModel, model: TriHeartBookUserModel) -> set[str] | None:
     return {"purchase_status"}
 
+  async def resolve_payment_amount(self, business_id: str, user_id: str) -> float | None:
+    return None
+
 
 class TriHeartBookNoteService(StringPKeyWithDictionaryService[TriHeartBookNoteModel, TriHeartBookNoteCrud, TriHeartBookNoteQuery], PageRectsMixinService[TriHeartBookNoteModel]):
   def __init__(self, db: Any):
@@ -1279,3 +1292,4 @@ class TriHeartChapterVideoService(StringPKeyWithDictionaryService[TriHeartChapte
 
 
 PaymentDispatcher.register_service("book_purchase", TriHeartBookUserService)
+PaymentDispatcher.register_amount_resolver("book_purchase", TriHeartBookService)

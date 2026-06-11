@@ -32,12 +32,6 @@ const router = createRouter({
           meta: {title: '三心书坊 - 书架'}
         },
         {
-          path: 'bookshelf/open/:bookId', // 开源书籍详情页
-          name: 'OpenBookDetail',
-          component: () => import('@/views/portal/OpenBookDetail.vue'),
-          meta: {title: '三心书坊 - 开源书籍详情'}
-        },
-        {
           path: 'bookshelf/:bookId', // 路径 /book/:id
           name: 'BookDetail',
           component: () => import('@/views/portal/BookDetail.vue'),
